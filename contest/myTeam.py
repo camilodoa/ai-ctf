@@ -91,6 +91,17 @@ class DummyAgent(CaptureAgent):
 
     return random.choice(actions)
 
+class memoize(dict):
+  def __init__(self, func):
+    self.func = func
+
+  def __call__(self, *args):
+    return self[args]
+
+  def __missing__(self, key):
+    result = self[key] = self.func(*key)
+    return result
+
 class SuperKingPacAgent(CaptureAgent):
 
   def registerInitialState(self, gameState):
@@ -123,13 +134,85 @@ class SuperKingPacAgent(CaptureAgent):
     """
     Picks among actions randomly.
     """
+    import time
+    startTime = time.time()
     actions = gameState.getLegalActions(self.index)
 
-    '''
-    You should change this in your own agent.
-    '''
+    max_score = -99999
+    max_action = None
+    alpha = -99999
+    beta = 99999
+    for action in actions:
+      result = self.minimax(gameState.generateSuccessor(self.index, action), startTime, 1, alpha, beta)
+      if result >= max_score:
+        max_score = result
+        max_action = action
 
-    return random.choice(actions)
+      if max_score > beta:
+        return max_action
+
+      alpha = max(alpha, max_score)
+
+    return max_action
+
+  @memoize
+  def minimax(self, s, t, turn, alpha, beta):
+      '''
+      s: gameState
+      t: time
+      turn: 0 if pacman, 1 if ghost
+      '''
+      if s.isWin() or s.isLose():
+          return self.evaluationFunction(s)
+
+      if self.cutoffTest(t):
+          return self.evaluationFunction(s)
+
+      teams = self.getTeam(s) + self.getOpponents(s)
+
+      if turn == 0 or turn == 1:
+          max_action = -99999
+          actions = s.getLegalActions(0)
+
+          for action in actions:
+              result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta)
+              if result > max_action:
+                  max_action = result
+
+              if max_action > beta:
+                return max_action
+
+              alpha = max(alpha, max_action)
+
+          return max_action
+
+
+      if turn >= 2:
+          min_action = 99999
+          actions = s.getLegalActions(teams[turn])
+
+          for action in actions:
+              if turn == 3:
+                  result = self.minimax(s.generateSuccessor(teams[turn], action), t, 0, alpha, beta)
+              else:
+                  result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta)
+
+              if result < min_action:
+                min_action = result
+
+              if min_action < alpha:
+                return min_action
+
+              beta = min(beta, min_action)
+
+          return min_action
+
+
+  def cutoffTest(self, t):
+    timeElapsed = time.time() - t
+    if timeElapsed > 0.5:
+        return True
+    return False
 
   def evaluationFunction(self, gameState):
     # Our plan:
