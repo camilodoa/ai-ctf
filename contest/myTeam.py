@@ -14,6 +14,7 @@
 
 from captureAgents import CaptureAgent
 import random, time, util
+from util import manhattanDistance
 from game import Directions
 import game
 
@@ -90,7 +91,7 @@ class DummyAgent(CaptureAgent):
 
     return random.choice(actions)
 
-class AlphaAgent(CaptureAgent):
+class SuperKingPacAgent(CaptureAgent):
 
   def registerInitialState(self, gameState):
     """
@@ -129,3 +130,94 @@ class AlphaAgent(CaptureAgent):
     '''
 
     return random.choice(actions)
+
+  def evaluationFunction(self, gameState):
+    # Our plan:
+    # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
+    ghostStates = [gameState.getGhostState(index) for index in self.getOpponents(gameState)]
+    n = gameState.getNumFood()
+    pos = gameState.getPacmanPosition()
+    foodStates = gameState.getFood().data
+    capsules = gameState.getCapsules()
+
+    # If you can win that's the best possible move
+    if gameState.isWin():
+        return 99999 + random.uniform(0, .5)
+
+    if gameState.isLose():
+        return -99999
+
+    # Fear
+    fear = 0
+    fear_factor = 10
+    ghosts = []
+    gamma = .5
+
+    # Calculate distances to nearest ghost
+    if ghostStates:
+        for ghost in ghostStates:
+            if ghost.scaredTimer == 0:
+                md = manhattanDistance(ghost.getPosition(), pos)
+                ghosts.append(md)
+
+
+    # Sort ghosts based on distance
+    ghosts = sorted(ghosts)
+    # Only worry about ghosts if they're nearby
+    ghosts = [ghost for ghost in ghosts if ghost < 5]
+
+
+    for i in range(len(ghosts)):
+        # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
+        # by a gamma^i where 0<gamma<1 and by a fear_factor
+        fear += (fear_factor/ghosts[i]) * (gamma**i)
+
+    # Record food coordinates
+    foods = []
+    for i in range(len(foodStates)):
+        for j in range(len(foodStates[i])):
+            if foodStates[i][j]:
+                foods.append((i, j))
+
+    #Calculate distances to nearest foods
+    foodDistances = []
+    if foods:
+        for food in foods:
+            md = manhattanDistance(food, pos)
+            foodDistances.append(md)
+    foodDistances = sorted(foodDistances)
+
+
+    hunger_factor = 18
+    # Hunger factor
+    hunger = 0
+    foodGamma = -0.4
+    for i in range(len(foodDistances)):
+        # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
+        # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
+        hunger += (hunger_factor/foodDistances[i]) * (foodGamma**i)
+
+    # Beserk mode
+    scaredGhosts = []
+    for ghost in ghostStates:
+        if ghost.scaredTimer > 0:
+            md = manhattanDistance(ghost.getPosition(), pos)
+            scaredGhosts.append(md)
+
+    # Senzu bean
+    capsuleDistances = []
+    for capsule in capsules:
+      md = manhattanDistance(capsule, pos)
+      capsuleDistances.append(md)
+
+    capsuleDistances = sorted(capsuleDistances)
+    for i in range(len(capsuleDistances)):
+        hunger += (hunger_factor*4/capsuleDistances[i]) * (foodGamma**i)
+
+    scaredGhosts = sorted(scaredGhosts)
+    scaredGhosts = [ghost for ghost in scaredGhosts if ghost < 5]
+    for i in range(len(scaredGhosts)):
+        hunger += (hunger_factor*2/scaredGhosts[i]) * (foodGamma**i)
+
+    score =  hunger - fear + random.uniform(0, .5) - (n+7)**2 + gameState.getScore() - (len(capsules)+30)**2
+    return score
