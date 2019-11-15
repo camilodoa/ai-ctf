@@ -195,6 +195,7 @@ class SuperKingPacAgent(CaptureAgent):
           return 0
           min_action = 99999
           actions = s.getLegalActions(teams[turn])
+          # Change this to setGhostPosition for highest probabilities
 
           for action in actions:
               if turn == 3:
