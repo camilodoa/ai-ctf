@@ -1,0 +1,16 @@
+@ learning stage --> 
+	1. run reinforcement learning to determine weights and
+		features for eval function
+
+@ registerInitialState() --> 
+	1. run particle filtering until we reach a certain 
+		probability threshold
+	2. then, we can do something else
+
+@ chooseAction() -->
+	1. update particles (for a little bit)
+	2. based on highest prob, run expectimax for a certain amount of time
+		(cutoff test is not based on computation time)
+	3. update reinforcement model with regular Q learning
+
+
