@@ -23,7 +23,7 @@ import game
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'AlphaAgent', second = 'AlphaAgent'):
+               first = 'SuperKingPacAgent', second = 'SuperKingPacAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
