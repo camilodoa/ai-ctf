@@ -91,16 +91,20 @@ class DummyAgent(CaptureAgent):
 
     return random.choice(actions)
 
-class memoize(dict):
-  def __init__(self, func):
-    self.func = func
+def memoize(f):
+    """ Memoization decorator for functions taking one or more arguments. """
+    class memodict(dict):
+      def __init__(self, func):
+        self.func = func
 
-  def __call__(self, *args):
-    return self[args]
+      def __call__(self, *args):
+        return self[args]
 
-  def __missing__(self, key):
-    result = self[key] = self.func(*key)
-    return result
+      def __missing__(self, key):
+        result = self[key] = self.func(*key)
+        return result
+
+    return memodict(f)
 
 class SuperKingPacAgent(CaptureAgent):
 
@@ -155,14 +159,14 @@ class SuperKingPacAgent(CaptureAgent):
 
     return max_action
 
-  @memoize
+  #@memoize
   def minimax(self, s, t, turn, alpha, beta):
       '''
       s: gameState
       t: time
       turn: 0 if pacman, 1 if ghost
       '''
-      if s.isWin() or s.isLose():
+      if s.isOver():
           return self.evaluationFunction(s)
 
       if self.cutoffTest(t):
@@ -172,7 +176,7 @@ class SuperKingPacAgent(CaptureAgent):
 
       if turn == 0 or turn == 1:
           max_action = -99999
-          actions = s.getLegalActions(0)
+          actions = s.getLegalActions(teams[turn])
 
           for action in actions:
               result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta)
@@ -188,6 +192,7 @@ class SuperKingPacAgent(CaptureAgent):
 
 
       if turn >= 2:
+          return 0
           min_action = 99999
           actions = s.getLegalActions(teams[turn])
 
@@ -223,12 +228,12 @@ class SuperKingPacAgent(CaptureAgent):
     foodStates = self.getFood(gameState)
     capsules = self.getCapsules(gameState)
 
-    # If you can win that's the best possible move
-    if gameState.isWin():
-        return 99999 + random.uniform(0, .5)
-
-    if gameState.isLose():
-        return -99999
+    # # If you can win that's the best possible move
+    # if gameState.isWin():
+    #     return 99999 + random.uniform(0, .5)
+    #
+    # if gameState.isLose():
+    #     return -99999
 
     # Fear
     fear = 0
