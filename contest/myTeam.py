@@ -135,10 +135,10 @@ class SuperKingPacAgent(CaptureAgent):
     # Our plan:
     # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
     ghostStates = [gameState.getGhostState(index) for index in self.getOpponents(gameState)]
-    n = gameState.getNumFood()
+    n = self.getFood(gameState).count()
     pos = gameState.getPacmanPosition()
-    foodStates = gameState.getFood().data
-    capsules = gameState.getCapsules()
+    foodStates = self.getFood(gameState)
+    capsules = self.getCapsules(gameState)
 
     # If you can win that's the best possible move
     if gameState.isWin():
