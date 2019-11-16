@@ -131,10 +131,12 @@ class SuperKingPacAgent(CaptureAgent):
     '''
     CaptureAgent.registerInitialState(self, gameState)
 
+    # Start up particle filtering
     self.numGhosts = len(self.getOpponents(gameState))
     self.ghostAgents = []
     self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
     self.numParticles = 600
+    self.initializeParticles(gameState)
 
 
   def chooseAction(self, gameState):
@@ -145,12 +147,23 @@ class SuperKingPacAgent(CaptureAgent):
     startTime = time.time()
     actions = gameState.getLegalActions(self.index)
 
+    # Particle filtering
+    while(not self.cutoffTest(startTime, 0.5)):
+        self.observeState()
+        self.elapseTime(gameState)
+
     max_score = -99999
     max_action = None
     alpha = -99999
     beta = 99999
     for action in actions:
-      result = self.minimax(gameState.generateSuccessor(self.index, action), startTime, 1, alpha, beta)
+      # Update successor ghost positions to be the max pos in our particle distributions
+      successor = gameState.generateSuccessor(self.index, action)
+      ghosts = self.getBeliefDistribution().argMax()
+      successor = self.setGhostPositions(successor, ghosts)
+
+
+      result = self.minimax(successor, startTime, 1, alpha, beta)
       if result >= max_score:
         max_score = result
         max_action = action
@@ -180,7 +193,7 @@ class SuperKingPacAgent(CaptureAgent):
       if s.isOver():
           return self.evaluationFunction(s)
 
-      if self.cutoffTest(t):
+      if self.cutoffTest(t, 0.9):
           return self.evaluationFunction(s)
 
       teams = self.getTeam(s) + self.getOpponents(s)
@@ -225,11 +238,12 @@ class SuperKingPacAgent(CaptureAgent):
           return min_action
 
 
-  def cutoffTest(self, t):
+  def cutoffTest(self, t, limit):
     timeElapsed = time.time() - t
-    if timeElapsed > 0.5:
+    if timeElapsed > limit:
         return True
     return False
+
 
   def evaluationFunction(self, gameState):
     # Our plan:
@@ -348,7 +362,7 @@ class SuperKingPacAgent(CaptureAgent):
 
   def observeState(self):
     gameState = self.getCurrentObservation()
-    pacmanPosition = gameState.getPacmanPosition()
+    pacmanPosition = gameState.getAgentPosition(self.index)
     noisyDistances = gameState.getAgentDistances()
     if len(noisyDistances) < self.numGhosts:
         return
@@ -377,10 +391,10 @@ class SuperKingPacAgent(CaptureAgent):
         # now loop through and update each entry in newParticle...
 
         for i, opponent in enumerate(self.getOpponents(gameState)):
-          actions = gameState.getLegalActions(opponent)
+          actions = gameState.getLegalActions(opponent) # Error here, Nonepointer exception
           action = random.sample(actions, 1)
           newParticle[i] = gameState.generateSuccessor(opponent, action)
-        
+
         newParticles.append(tuple(newParticle))
     self.particles = newParticles
 
@@ -390,3 +404,10 @@ class SuperKingPacAgent(CaptureAgent):
           beliefs[particle] += 1
       beliefs.normalize()
       return beliefs
+
+  def setGhostPositions(gameState, ghostPositions):
+    "Sets the position of all ghosts to the values in ghostPositionTuple."
+    for index, pos in enumerate(ghostPositions):
+        conf = game.Configuration(pos, game.Directions.STOP)
+        gameState.data.agentStates[index + 1] = game.AgentState(conf, False)
+    return gameState
