@@ -346,34 +346,47 @@ class SuperKingPacAgent(CaptureAgent):
 
     return self.particles
 
-  def observeState(self, gameState):
+  def observeState(self):
+    gameState = self.getCurrentObservation()
     pacmanPosition = gameState.getPacmanPosition()
-    noisyDistances = gameState.getNoisyGhostDistances()
+    noisyDistances = gameState.getAgentDistances()
     if len(noisyDistances) < self.numGhosts:
         return
-    emissionModels = [busters.getObservationDistribution(dist) for dist in noisyDistances]
 
     weights = util.Counter()
 
-    for i in xrange(len(noisyDistances)):
-        if noisyDistances[i] == None:
-            for particle in xrange(len(self.particles)):
-                self.particles[particle] = self.getParticleWithGhostInJail(self.particles[particle], i)
-
     for particle in self.particles:
         weight = 1
-        for i in xrange(self.numGhosts):
-            if particle[i] == self.getJailPosition(i):
-                weight = 1
-            else:
-                distance = util.manhattanDistance(pacmanPosition, particle[i])
-                prob = emissionModels[i][distance]
-                weight *= prob
+        for i, opponent in enumerate(self.getOpponents(gameState)):
+          distance = util.manhattanDistance(pacmanPosition, particle[i])
+          prob = gameState.getDistanceProb(distance, noisyDistances[opponent])
+          weight *= prob
         weights[particle] += weight
 
     if weights.totalCount() == 0:
-        self.particles = self.initializeParticles()
+        self.particles = self.initializeParticles(gameState)
     else:
         weights.normalize()
         for i in xrange(len(self.particles)):
             self.particles[i] = util.sample(weights)
+
+  def elapseTime(self, gameState):
+    newParticles = []
+    for oldParticle in self.particles:
+        newParticle = list(oldParticle) # A list of ghost positions
+        # now loop through and update each entry in newParticle...
+
+        for i, opponent in enumerate(self.getOpponents(gameState)):
+          actions = gameState.getLegalActions(opponent)
+          action = random.sample(actions, 1)
+          newParticle[i] = gameState.generateSuccessor(opponent, action)
+        
+        newParticles.append(tuple(newParticle))
+    self.particles = newParticles
+
+  def getBeliefDistribution(self):
+      beliefs = util.Counter()
+      for particle in self.particles:
+          beliefs[particle] += 1
+      beliefs.normalize()
+      return beliefs
