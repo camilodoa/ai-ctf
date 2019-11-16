@@ -17,6 +17,7 @@ import random, time, util
 from util import manhattanDistance
 from game import Directions
 import game
+import itertools
 
 #################
 # Team creation #
@@ -129,9 +130,11 @@ class SuperKingPacAgent(CaptureAgent):
     '''
     CaptureAgent.registerInitialState(self, gameState)
 
-    '''
-    Your initialization code goes here, if you need any.
-    '''
+    self.numGhosts = self.getOpponents(gameState).count()
+    self.ghostAgents = []
+    self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
+    self.numParticles = 600
+    self.initializeParticles()
 
 
   def chooseAction(self, gameState):
@@ -158,6 +161,14 @@ class SuperKingPacAgent(CaptureAgent):
       alpha = max(alpha, max_score)
 
     return max_action
+
+  '''
+  ################################################################
+
+                Expectimax
+
+  ################################################################
+  '''
 
   #@memoize
   def minimax(self, s, t, turn, alpha, beta):
@@ -310,3 +321,59 @@ class SuperKingPacAgent(CaptureAgent):
 
     score =  hunger - fear + random.uniform(0, .5) - (n+7)**2 + gameState.getScore() - (len(capsules)+30)**2
     return score
+
+  '''
+  ################################################################
+
+                Particle Filtering
+
+  ################################################################
+  '''
+
+  def initializeParticles(self, gameState):
+    permutations = list(itertools.product(self.legalPositions, repeat = self.numGhosts))
+    random.shuffle(permutations)
+
+    particlesPerPerm = self.numParticles // len(permutations)
+    self.particles = []
+    for permutation in permutations:
+        for i in xrange(particlesPerPerm):
+            self.particles.append(permutation)
+
+    remainderParticles = self.numParticles - (particlesPerPerm * len(permutations))
+    for i in xrange(remainderParticles):
+        self.particles.append(random.choice(permutations))
+
+    return self.particles
+
+  def observeState(self, gameState):
+    pacmanPosition = gameState.getPacmanPosition()
+    noisyDistances = gameState.getNoisyGhostDistances()
+    if len(noisyDistances) < self.numGhosts:
+        return
+    emissionModels = [busters.getObservationDistribution(dist) for dist in noisyDistances]
+
+    weights = util.Counter()
+
+    for i in xrange(len(noisyDistances)):
+        if noisyDistances[i] == None:
+            for particle in xrange(len(self.particles)):
+                self.particles[particle] = self.getParticleWithGhostInJail(self.particles[particle], i)
+
+    for particle in self.particles:
+        weight = 1
+        for i in xrange(self.numGhosts):
+            if particle[i] == self.getJailPosition(i):
+                weight = 1
+            else:
+                distance = util.manhattanDistance(pacmanPosition, particle[i])
+                prob = emissionModels[i][distance]
+                weight *= prob
+        weights[particle] += weight
+
+    if weights.totalCount() == 0:
+        self.particles = self.initializeParticles()
+    else:
+        weights.normalize()
+        for i in xrange(len(self.particles)):
+            self.particles[i] = util.sample(weights)
