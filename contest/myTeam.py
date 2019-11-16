@@ -93,19 +93,20 @@ class DummyAgent(CaptureAgent):
     return random.choice(actions)
 
 def memoize(f):
-    """ Memoization decorator for functions taking one or more arguments. """
-    class memodict(dict):
-      def __init__(self, func):
-        self.func = func
+  """ Memoization decorator for functions taking one or more arguments. """
+  class memodict(dict):
+    def __init__(self, func):
+      print(dir(func))
+      self.func = func
 
-      def __call__(self, *args):
-        return self[args]
+    def __call__(self, *args):
+      return self[args]
 
-      def __missing__(self, key):
-        result = self[key] = self.func(*key)
-        return result
+    def __missing__(self, key):
+      result = self[key] = self.func(*key)
+      return result
 
-    return memodict(f)
+  return memodict(f)
 
 class SuperKingPacAgent(CaptureAgent):
 
@@ -130,11 +131,10 @@ class SuperKingPacAgent(CaptureAgent):
     '''
     CaptureAgent.registerInitialState(self, gameState)
 
-    self.numGhosts = self.getOpponents(gameState).count()
+    self.numGhosts = len(self.getOpponents(gameState))
     self.ghostAgents = []
     self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
     self.numParticles = 600
-    self.initializeParticles()
 
 
   def chooseAction(self, gameState):
@@ -170,7 +170,7 @@ class SuperKingPacAgent(CaptureAgent):
   ################################################################
   '''
 
-  #@memoize
+  # @memoize
   def minimax(self, s, t, turn, alpha, beta):
       '''
       s: gameState
