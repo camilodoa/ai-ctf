@@ -19,13 +19,14 @@ from game import Directions
 import game
 import itertools
 
+
 #################
 # Team creation #
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'SuperKingPacAgent', second = 'SuperKingPacAgent'):
-  """
+               first='BigBrainAgent', second='BigBrainAgent'):
+    """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
   index numbers.  isRed is True if the red team is being created, and
@@ -40,374 +41,370 @@ def createTeam(firstIndex, secondIndex, isRed,
   behavior is what you want for the nightly contest.
   """
 
-  # The following line is an example only; feel free to change it.
-  return [eval(first)(firstIndex), eval(second)(secondIndex)]
+    # The following line is an example only; feel free to change it.
+    return [eval(first)(firstIndex), eval(second)(secondIndex)]
+
 
 ##########
 # Agents #
 ##########
 
 class DummyAgent(CaptureAgent):
-  """
+    """
   A Dummy agent to serve as an example of the necessary agent structure.
   You should look at baselineTeam.py for more details about how to
   create an agent as this is the bare minimum.
   """
 
-  def registerInitialState(self, gameState):
-    """
-    This method handles the initial setup of the
-    agent to populate useful fields (such as what team
-    we're on).
+    def registerInitialState(self, gameState):
+        """
+        This method handles the initial setup of the
+        agent to populate useful fields (such as what team
+        we're on).
 
-    A distanceCalculator instance caches the maze distances
-    between each pair of positions, so your agents can use:
-    self.distancer.getDistance(p1, p2)
+        A distanceCalculator instance caches the maze distances
+        between each pair of positions, so your agents can use:
+        self.distancer.getDistance(p1, p2)
 
-    IMPORTANT: This method may run for at most 15 seconds.
-    """
+        IMPORTANT: This method may run for at most 15 seconds.
+        """
 
-    '''
-    Make sure you do not delete the following line. If you would like to
-    use Manhattan distances instead of maze distances in order to save
-    on initialization time, please take a look at
-    CaptureAgent.registerInitialState in captureAgents.py.
-    '''
-    CaptureAgent.registerInitialState(self, gameState)
+            '''
+        Make sure you do not delete the following line. If you would like to
+        use Manhattan distances instead of maze distances in order to save
+        on initialization time, please take a look at
+        CaptureAgent.registerInitialState in captureAgents.py.
+        '''
+        CaptureAgent.registerInitialState(self, gameState)
 
-    '''
-    Your initialization code goes here, if you need any.
-    '''
+        '''
+        Your initialization code goes here, if you need any.
+        '''
 
+    def chooseAction(self, gameState):
+        """
+        Picks among actions randomly.
+        """
+        actions = gameState.getLegalActions(self.index)
 
-  def chooseAction(self, gameState):
-    """
-    Picks among actions randomly.
-    """
-    actions = gameState.getLegalActions(self.index)
+        '''
+        You should change this in your own agent.
+        '''
 
-    '''
-    You should change this in your own agent.
-    '''
+        return random.choice(actions)
 
-    return random.choice(actions)
 
 def memoize(f):
-  """ Memoization decorator for functions taking one or more arguments. """
-  class memodict(dict):
-    def __init__(self, func):
-      print(dir(func))
-      self.func = func
+    """ Memoization decorator for functions taking one or more arguments. """
 
-    def __call__(self, *args):
-      return self[args]
+    class memodict(dict):
+        def __init__(self, func):
+            print(dir(func))
+            self.func = func
 
-    def __missing__(self, key):
-      result = self[key] = self.func(*key)
-      return result
+        def __call__(self, *args):
+            return self[args]
 
-  return memodict(f)
+        def __missing__(self, key):
+            result = self[key] = self.func(*key)
+            return result
 
-class SuperKingPacAgent(CaptureAgent):
-
-  def registerInitialState(self, gameState):
-    """
-    This method handles the initial setup of the
-    agent to populate useful fields (such as what team
-    we're on).
-
-    A distanceCalculator instance caches the maze distances
-    between each pair of positions, so your agents can use:
-    self.distancer.getDistance(p1, p2)
-
-    IMPORTANT: This method may run for at most 15 seconds.
-    """
-
-    '''
-    Make sure you do not delete the following line. If you would like to
-    use Manhattan distances instead of maze distances in order to save
-    on initialization time, please take a look at
-    CaptureAgent.registerInitialState in captureAgents.py.
-    '''
-    CaptureAgent.registerInitialState(self, gameState)
-
-    # Start up particle filtering
-    self.numGhosts = len(self.getOpponents(gameState))
-    self.ghostAgents = []
-    self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
-    self.numParticles = 600
-    self.initializeParticles(gameState)
+    return memodict(f)
 
 
-  def chooseAction(self, gameState):
-    """
-    Picks among actions randomly.
-    """
-    import time
-    startTime = time.time()
-    actions = gameState.getLegalActions(self.index)
+class BigBrainAgent(CaptureAgent):
 
-    # Particle filtering
-    while(not self.cutoffTest(startTime, 0.5)):
-        self.observeState()
-        self.elapseTime(gameState)
+    def registerInitialState(self, gameState):
+        """
+        This method handles the initial setup of the
+        agent to populate useful fields (such as what team
+        we're on).
 
-    max_score = -99999
-    max_action = None
-    alpha = -99999
-    beta = 99999
-    for action in actions:
-      # Update successor ghost positions to be the max pos in our particle distributions
-      successor = gameState.generateSuccessor(self.index, action)
-      ghosts = self.getBeliefDistribution().argMax()
-      successor = self.setGhostPositions(successor, ghosts)
+        A distanceCalculator instance caches the maze distances
+        between each pair of positions, so your agents can use:
+        self.distancer.getDistance(p1, p2)
 
+        IMPORTANT: This method may run for at most 15 seconds.
+        """
 
-      result = self.minimax(successor, startTime, 1, alpha, beta)
-      if result >= max_score:
-        max_score = result
-        max_action = action
+        '''
+        Make sure you do not delete the following line. If you would like to
+        use Manhattan distances instead of maze distances in order to save
+        on initialization time, please take a look at
+        CaptureAgent.registerInitialState in captureAgents.py.
+        '''
+        CaptureAgent.registerInitialState(self, gameState)
 
-      if max_score > beta:
-        return max_action
+        # Start up particle filtering
+        self.numGhosts = len(self.getOpponents(gameState))
+        self.ghostAgents = []
+        self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
+        self.numParticles = 600
+        self.initializeParticles(gameState)
 
-      alpha = max(alpha, max_score)
+    def chooseAction(self, gameState):
+        """
+        Picks among actions randomly.
+        """
+        import time
+        startTime = time.time()
+        actions = gameState.getLegalActions(self.index)
 
-    return max_action
+        # Particle filtering
+        while (not self.cutoffTest(startTime, 0.5)):
+            self.observeState()
+            self.elapseTime(gameState)
 
-  '''
-  ################################################################
+        max_score = -99999
+        max_action = None
+        alpha = -99999
+        beta = 99999
+        for action in actions:
+            # Update successor ghost positions to be the max pos in our particle distributions
+            successor = gameState.generateSuccessor(self.index, action)
+            ghosts = self.getBeliefDistribution().argMax()
+            successor = self.setGhostPositions(successor, ghosts)
 
-                Expectimax
+            result = self.minimax(successor, startTime, 1, alpha, beta)
+            if result >= max_score:
+                max_score = result
+                max_action = action
 
-  ################################################################
-  '''
-
-  # @memoize
-  def minimax(self, s, t, turn, alpha, beta):
-      '''
-      s: gameState
-      t: time
-      turn: 0 if pacman, 1 if ghost
-      '''
-      if s.isOver():
-          return self.evaluationFunction(s)
-
-      if self.cutoffTest(t, 0.9):
-          return self.evaluationFunction(s)
-
-      teams = self.getTeam(s) + self.getOpponents(s)
-
-      if turn == 0 or turn == 1:
-          max_action = -99999
-          actions = s.getLegalActions(teams[turn])
-
-          for action in actions:
-              result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta)
-              if result > max_action:
-                  max_action = result
-
-              if max_action > beta:
+            if max_score > beta:
                 return max_action
 
-              alpha = max(alpha, max_action)
+            alpha = max(alpha, max_score)
 
-          return max_action
+        return max_action
 
+    '''
+     ################################################################
 
-      if turn >= 2:
-          return 0
-          min_action = 99999
-          actions = s.getLegalActions(teams[turn])
-          # Change this to setGhostPosition for highest probabilities
+				Expectimax
 
-          for action in actions:
-              if turn == 3:
-                  result = self.minimax(s.generateSuccessor(teams[turn], action), t, 0, alpha, beta)
-              else:
-                  result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta)
+    ################################################################
+    '''
 
-              if result < min_action:
-                min_action = result
+    # @memoize
+    def minimax(self, s, t, turn, alpha, beta):
+        '''
+        s: gameState
+        t: time
+        turn: 0 if pacman, 1 if ghost
+        '''
+        if s.isOver():
+            return self.evaluationFunction(s)
 
-              if min_action < alpha:
-                return min_action
+        if self.cutoffTest(t, 0.9):
+            return self.evaluationFunction(s)
 
-              beta = min(beta, min_action)
+        teams = self.getTeam(s) + self.getOpponents(s)
 
-          return min_action
+        if turn == 0 or turn == 1:
+            max_action = -99999
+            actions = s.getLegalActions(teams[turn])
 
+            for action in actions:
+                result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta)
+                if result > max_action:
+                    max_action = result
 
-  def cutoffTest(self, t, limit):
-    timeElapsed = time.time() - t
-    if timeElapsed > limit:
-        return True
-    return False
+                if max_action > beta:
+                    return max_action
 
+                alpha = max(alpha, max_action)
 
-  def evaluationFunction(self, gameState):
-    # Our plan:
-    # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
-    ghostStates = [gameState.getGhostState(index) for index in self.getOpponents(gameState)]
-    n = self.getFood(gameState).count()
-    pos = gameState.getPacmanPosition()
-    foodStates = self.getFood(gameState)
-    capsules = self.getCapsules(gameState)
+            return max_action
 
-    # # If you can win that's the best possible move
-    # if gameState.isWin():
-    #     return 99999 + random.uniform(0, .5)
-    #
-    # if gameState.isLose():
-    #     return -99999
+        if turn >= 2:
+            return 0
+            min_action = 99999
+            actions = s.getLegalActions(teams[turn])
+            # Change this to setGhostPosition for highest probabilities
 
-    # Fear
-    fear = 0
-    fear_factor = 10
-    ghosts = []
-    gamma = .5
+            for action in actions:
+                if turn == 3:
+                    result = self.minimax(s.generateSuccessor(teams[turn], action), t, 0, alpha, beta)
+                else:
+                    result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta)
 
-    # Calculate distances to nearest ghost
-    if ghostStates:
+                if result < min_action:
+                    min_action = result
+
+                if min_action < alpha:
+                    return min_action
+
+                beta = min(beta, min_action)
+
+            return min_action
+
+    def cutoffTest(self, t, limit):
+        timeElapsed = time.time() - t
+        if timeElapsed > limit:
+            return True
+        return False
+
+    def evaluationFunction(self, gameState):
+        # Our plan:
+        # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
+        ghostStates = [gameState.getGhostState(index) for index in self.getOpponents(gameState)]
+        n = self.getFood(gameState).count()
+        pos = gameState.getPacmanPosition()
+        foodStates = self.getFood(gameState)
+        capsules = self.getCapsules(gameState)
+
+        # # If you can win that's the best possible move
+        # if gameState.isWin():
+        #     return 99999 + random.uniform(0, .5)
+        #
+        # if gameState.isLose():
+        #     return -99999
+
+        # Fear
+        fear = 0
+        fear_factor = 10
+        ghosts = []
+        gamma = .5
+
+        # Calculate distances to nearest ghost
+        if ghostStates:
+            for ghost in ghostStates:
+                if ghost.scaredTimer == 0:
+                    md = manhattanDistance(ghost.getPosition(), pos)
+                    ghosts.append(md)
+
+        # Sort ghosts based on distance
+        ghosts = sorted(ghosts)
+        # Only worry about ghosts if they're nearby
+        ghosts = [ghost for ghost in ghosts if ghost < 5]
+
+        for i in range(len(ghosts)):
+            # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
+            # by a gamma^i where 0<gamma<1 and by a fear_factor
+            fear += (fear_factor / ghosts[i]) * (gamma ** i)
+
+        # Record food coordinates
+        foods = []
+        for i in range(len(foodStates)):
+            for j in range(len(foodStates[i])):
+                if foodStates[i][j]:
+                    foods.append((i, j))
+
+        # Calculate distances to nearest foods
+        foodDistances = []
+        if foods:
+            for food in foods:
+                md = manhattanDistance(food, pos)
+                foodDistances.append(md)
+        foodDistances = sorted(foodDistances)
+
+        hunger_factor = 18
+        # Hunger factor
+        hunger = 0
+        foodGamma = -0.4
+        for i in range(len(foodDistances)):
+            # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
+            # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
+            hunger += (hunger_factor / foodDistances[i]) * (foodGamma ** i)
+
+        # Beserk mode
+        scaredGhosts = []
         for ghost in ghostStates:
-            if ghost.scaredTimer == 0:
+            if ghost.scaredTimer > 0:
                 md = manhattanDistance(ghost.getPosition(), pos)
-                ghosts.append(md)
+                scaredGhosts.append(md)
 
+        # Senzu bean
+        capsuleDistances = []
+        for capsule in capsules:
+            md = manhattanDistance(capsule, pos)
+            capsuleDistances.append(md)
 
-    # Sort ghosts based on distance
-    ghosts = sorted(ghosts)
-    # Only worry about ghosts if they're nearby
-    ghosts = [ghost for ghost in ghosts if ghost < 5]
+        capsuleDistances = sorted(capsuleDistances)
+        for i in range(len(capsuleDistances)):
+            hunger += (hunger_factor * 4 / capsuleDistances[i]) * (foodGamma ** i)
 
+        scaredGhosts = sorted(scaredGhosts)
+        scaredGhosts = [ghost for ghost in scaredGhosts if ghost < 5]
+        for i in range(len(scaredGhosts)):
+            hunger += (hunger_factor * 2 / scaredGhosts[i]) * (foodGamma ** i)
 
-    for i in range(len(ghosts)):
-        # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
-        # by a gamma^i where 0<gamma<1 and by a fear_factor
-        fear += (fear_factor/ghosts[i]) * (gamma**i)
+        score = hunger - fear + random.uniform(0, .5) - (n + 7) ** 2 + gameState.getScore() - (len(capsules) + 30) ** 2
+        return score
 
-    # Record food coordinates
-    foods = []
-    for i in range(len(foodStates)):
-        for j in range(len(foodStates[i])):
-            if foodStates[i][j]:
-                foods.append((i, j))
-
-    #Calculate distances to nearest foods
-    foodDistances = []
-    if foods:
-        for food in foods:
-            md = manhattanDistance(food, pos)
-            foodDistances.append(md)
-    foodDistances = sorted(foodDistances)
-
-
-    hunger_factor = 18
-    # Hunger factor
-    hunger = 0
-    foodGamma = -0.4
-    for i in range(len(foodDistances)):
-        # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
-        # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
-        hunger += (hunger_factor/foodDistances[i]) * (foodGamma**i)
-
-    # Beserk mode
-    scaredGhosts = []
-    for ghost in ghostStates:
-        if ghost.scaredTimer > 0:
-            md = manhattanDistance(ghost.getPosition(), pos)
-            scaredGhosts.append(md)
-
-    # Senzu bean
-    capsuleDistances = []
-    for capsule in capsules:
-      md = manhattanDistance(capsule, pos)
-      capsuleDistances.append(md)
-
-    capsuleDistances = sorted(capsuleDistances)
-    for i in range(len(capsuleDistances)):
-        hunger += (hunger_factor*4/capsuleDistances[i]) * (foodGamma**i)
-
-    scaredGhosts = sorted(scaredGhosts)
-    scaredGhosts = [ghost for ghost in scaredGhosts if ghost < 5]
-    for i in range(len(scaredGhosts)):
-        hunger += (hunger_factor*2/scaredGhosts[i]) * (foodGamma**i)
-
-    score =  hunger - fear + random.uniform(0, .5) - (n+7)**2 + gameState.getScore() - (len(capsules)+30)**2
-    return score
-
-  '''
-  ################################################################
+    '''
+    ################################################################
 
                 Particle Filtering
 
-  ################################################################
-  '''
+    ################################################################
+    '''
 
-  def initializeParticles(self, gameState):
-    permutations = list(itertools.product(self.legalPositions, repeat = self.numGhosts))
-    random.shuffle(permutations)
+    def initializeParticles(self, gameState):
+        permutations = list(itertools.product(self.legalPositions, repeat=self.numGhosts))
+        random.shuffle(permutations)
 
-    particlesPerPerm = self.numParticles // len(permutations)
-    self.particles = []
-    for permutation in permutations:
-        for i in xrange(particlesPerPerm):
-            self.particles.append(permutation)
+        particlesPerPerm = self.numParticles // len(permutations)
+        self.particles = []
+        for permutation in permutations:
+            for i in xrange(particlesPerPerm):
+                self.particles.append(permutation)
 
-    remainderParticles = self.numParticles - (particlesPerPerm * len(permutations))
-    for i in xrange(remainderParticles):
-        self.particles.append(random.choice(permutations))
+        remainderParticles = self.numParticles - (particlesPerPerm * len(permutations))
+        for i in xrange(remainderParticles):
+            self.particles.append(random.choice(permutations))
 
-    return self.particles
+        return self.particles
 
-  def observeState(self):
-    gameState = self.getCurrentObservation()
-    pacmanPosition = gameState.getAgentPosition(self.index)
-    noisyDistances = gameState.getAgentDistances()
-    if len(noisyDistances) < self.numGhosts:
-        return
+    def observeState(self):
+        gameState = self.getCurrentObservation()
+        pacmanPosition = gameState.getAgentPosition(self.index)
+        noisyDistances = gameState.getAgentDistances()
+        if len(noisyDistances) < self.numGhosts:
+            return
 
-    weights = util.Counter()
+        weights = util.Counter()
 
-    for particle in self.particles:
-        weight = 1
-        for i, opponent in enumerate(self.getOpponents(gameState)):
-          distance = util.manhattanDistance(pacmanPosition, particle[i])
-          prob = gameState.getDistanceProb(distance, noisyDistances[opponent])
-          weight *= prob
-        weights[particle] += weight
+        for particle in self.particles:
+            weight = 1
+            for i, opponent in enumerate(self.getOpponents(gameState)):
+                distance = util.manhattanDistance(pacmanPosition, particle[i])
+                prob = gameState.getDistanceProb(distance, noisyDistances[opponent])
+                weight *= prob
+            weights[particle] += weight
 
-    if weights.totalCount() == 0:
-        self.particles = self.initializeParticles(gameState)
-    else:
-        weights.normalize()
-        for i in xrange(len(self.particles)):
-            self.particles[i] = util.sample(weights)
+        if weights.totalCount() == 0:
+            self.particles = self.initializeParticles(gameState)
+        else:
+            weights.normalize()
+            for i in xrange(len(self.particles)):
+                self.particles[i] = util.sample(weights)
 
-  def elapseTime(self, gameState):
-    newParticles = []
-    for oldParticle in self.particles:
-        newParticle = list(oldParticle) # A list of ghost positions
-        # now loop through and update each entry in newParticle...
+    def elapseTime(self, gameState):
+        newParticles = []
+        for oldParticle in self.particles:
+            newParticle = list(oldParticle)  # A list of ghost positions
+            # now loop through and update each entry in newParticle...
 
-        for i, opponent in enumerate(self.getOpponents(gameState)):
-          actions = gameState.getLegalActions(opponent) # Error here, Nonepointer exception
-          action = random.sample(actions, 1)
-          newParticle[i] = gameState.generateSuccessor(opponent, action)
+            for i, opponent in enumerate(self.getOpponents(gameState)):
+                print(self.getOpponents(gameState))
+                actions = gameState.getLegalActions(opponent)  # Error here, Nonepointer exception
+                action = random.sample(actions, 1)
+                newParticle[i] = gameState.generateSuccessor(opponent, action)
 
-        newParticles.append(tuple(newParticle))
-    self.particles = newParticles
+            newParticles.append(tuple(newParticle))
+        self.particles = newParticles
 
-  def getBeliefDistribution(self):
-      beliefs = util.Counter()
-      for particle in self.particles:
-          beliefs[particle] += 1
-      beliefs.normalize()
-      return beliefs
+    def getBeliefDistribution(self):
+        beliefs = util.Counter()
+        for particle in self.particles:
+            beliefs[particle] += 1
+        beliefs.normalize()
+        return beliefs
 
-  def setGhostPositions(gameState, ghostPositions):
-    "Sets the position of all ghosts to the values in ghostPositionTuple."
-    for index, pos in enumerate(ghostPositions):
-        conf = game.Configuration(pos, game.Directions.STOP)
-        gameState.data.agentStates[index + 1] = game.AgentState(conf, False)
-    return gameState
+    def setGhostPositions(gameState, ghostPositions):
+        "Sets the position of all ghosts to the values in ghostPositionTuple."
+        for index, pos in enumerate(ghostPositions):
+            conf = game.Configuration(pos, game.Directions.STOP)
+            gameState.data.agentStates[index + 1] = game.AgentState(conf, False)
+        return gameState
