@@ -69,7 +69,7 @@ class DummyAgent(CaptureAgent):
         IMPORTANT: This method may run for at most 15 seconds.
         """
 
-            '''
+        '''
         Make sure you do not delete the following line. If you would like to
         use Manhattan distances instead of maze distances in order to save
         on initialization time, please take a look at
