@@ -163,7 +163,7 @@ class BigBrainAgent(CaptureAgent):
             # Update successor ghost positions to be the max pos in our particle distributions
             successor = gameState.generateSuccessor(self.index, action)
             ghosts = self.getBeliefDistribution().argMax()
-            successor = self.setGhostPositions(successor, ghosts)
+            successor = self.setGhostPositions(successor, ghosts, self.getOpponents(gameState))
 
             result = self.minimax(successor, startTime, 1, alpha, beta)
             if result >= max_score:
@@ -388,9 +388,14 @@ class BigBrainAgent(CaptureAgent):
 
             for i, opponent in enumerate(self.getOpponents(gameState)):
                 print(self.getOpponents(gameState))
-                actions = gameState.getLegalActions(opponent)  # Error here, Nonepointer exception
-                action = random.sample(actions, 1)
-                newParticle[i] = gameState.generateSuccessor(opponent, action)
+                print(opponent)
+                print(oldParticle)
+                currState = self.setGhostPosition(gameState, oldParticle[i], opponent)
+
+                actions = currState.getLegalActions(opponent)  # Error here, Nonepointer exception
+                print(actions)
+                action = random.sample(actions, 1)[0]
+                newParticle[i] = currState.generateSuccessor(opponent, action).getAgentPosition(opponent)
 
             newParticles.append(tuple(newParticle))
         self.particles = newParticles
@@ -402,9 +407,15 @@ class BigBrainAgent(CaptureAgent):
         beliefs.normalize()
         return beliefs
 
-    def setGhostPositions(gameState, ghostPositions):
+    def setGhostPosition(self, gameState, ghostPosition, oppIndex):
+        "Sets the position of all ghosts to the values in ghostPositionTuple."
+        conf = game.Configuration(ghostPosition, game.Directions.STOP)
+        gameState.data.agentStates[oppIndex] = game.AgentState(conf, False)
+        return gameState
+
+    def setGhostPositions(gameState, ghostPositions, oppIndices):
         "Sets the position of all ghosts to the values in ghostPositionTuple."
         for index, pos in enumerate(ghostPositions):
             conf = game.Configuration(pos, game.Directions.STOP)
-            gameState.data.agentStates[index + 1] = game.AgentState(conf, False)
+            gameState.data.agentStates[oppIndices[index]] = game.AgentState(conf, False)
         return gameState
