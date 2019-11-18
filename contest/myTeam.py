@@ -247,7 +247,7 @@ class BigBrainAgent(CaptureAgent):
     def evaluationFunction(self, gameState):
         # Our plan:
         # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
-        ghostStates = [gameState.getGhostState(index) for index in self.getOpponents(gameState)]
+        ghostStates = [gameState.getAgentState(index) for index in self.getOpponents(gameState)]
         n = self.getFood(gameState).count()
         pos = gameState.getPacmanPosition()
         foodStates = self.getFood(gameState)
@@ -364,12 +364,12 @@ class BigBrainAgent(CaptureAgent):
             return
 
         weights = util.Counter()
-
         for particle in self.particles:
             weight = 1
             for i, opponent in enumerate(self.getOpponents(gameState)):
                 distance = util.manhattanDistance(pacmanPosition, particle[i])
                 prob = gameState.getDistanceProb(distance, noisyDistances[opponent])
+                print(distance, prob)
                 weight *= prob
             weights[particle] += weight
 
@@ -387,14 +387,12 @@ class BigBrainAgent(CaptureAgent):
             # now loop through and update each entry in newParticle...
 
             for i, opponent in enumerate(self.getOpponents(gameState)):
-                print(self.getOpponents(gameState))
-                print(opponent)
-                print(oldParticle)
                 currState = self.setGhostPosition(gameState, oldParticle[i], opponent)
 
-                actions = currState.getLegalActions(opponent)  # Error here, Nonepointer exception
-                print(actions)
+                actions = currState.getLegalActions(opponent)
                 action = random.sample(actions, 1)[0]
+                print(currState.getAgentState(opponent))
+                # Error here, can't dump food from something that isn't a pacman
                 newParticle[i] = currState.generateSuccessor(opponent, action).getAgentPosition(opponent)
 
             newParticles.append(tuple(newParticle))
@@ -413,7 +411,7 @@ class BigBrainAgent(CaptureAgent):
         gameState.data.agentStates[oppIndex] = game.AgentState(conf, False)
         return gameState
 
-    def setGhostPositions(gameState, ghostPositions, oppIndices):
+    def setGhostPositions(self, gameState, ghostPositions, oppIndices):
         "Sets the position of all ghosts to the values in ghostPositionTuple."
         for index, pos in enumerate(ghostPositions):
             conf = game.Configuration(pos, game.Directions.STOP)
