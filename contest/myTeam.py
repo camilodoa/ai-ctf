@@ -17,15 +17,16 @@ import random, time, util
 from util import manhattanDistance
 from game import Directions
 import game
+from game import Directions, Actions
 import itertools
-
+import time
 
 #################
 # Team creation #
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='BigBrainAgent', second='BigBrainAgent'):
+               first='PacmanQAgent', second='PacmanQAgent'):
     """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -93,24 +94,18 @@ class DummyAgent(CaptureAgent):
 
         return random.choice(actions)
 
-
-def memoize(f):
-    """ Memoization decorator for functions taking one or more arguments. """
-
-    class memodict(dict):
-        def __init__(self, func):
-            print(dir(func))
-            self.func = func
-
-        def __call__(self, *args):
-            return self[args]
-
-        def __missing__(self, key):
-            result = self[key] = self.func(*key)
-            return result
-
-    return memodict(f)
-
+# baselineTeam.py
+# ---------------
+# Licensing Information:  You are free to use or extend these projects for
+# educational purposes provided that (1) you do not distribute or publish
+# solutions, (2) you retain this notice, and (3) you provide clear
+# attribution to UC Berkeley, including a link to http://ai.berkeley.edu.
+#
+# Attribution Information: The Pacman AI projects were developed at UC Berkeley.
+# The core projects and autograders were primarily created by John DeNero
+# (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
+# Student side autograding was added by Brad Miller, Nick Hay, and
+# Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
 class BigBrainAgent(CaptureAgent):
 
@@ -146,7 +141,6 @@ class BigBrainAgent(CaptureAgent):
         """
         Picks among actions randomly.
         """
-        import time
         startTime = time.time()
         actions = gameState.getLegalActions(self.index)
 
@@ -249,7 +243,7 @@ class BigBrainAgent(CaptureAgent):
         # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
         ghostStates = [gameState.getAgentState(index) for index in self.getOpponents(gameState)]
         n = self.getFood(gameState).count()
-        pos = gameState.getPacmanPosition()
+        pos = gameState.getAgentPosition(self.index)
         foodStates = self.getFood(gameState)
         capsules = self.getCapsules(gameState)
 
@@ -369,7 +363,7 @@ class BigBrainAgent(CaptureAgent):
             for i, opponent in enumerate(self.getOpponents(gameState)):
                 distance = util.manhattanDistance(pacmanPosition, particle[i])
                 prob = gameState.getDistanceProb(distance, noisyDistances[opponent])
-                print(distance, prob)
+                #print(distance, prob)
                 weight *= prob
             weights[particle] += weight
 
@@ -391,7 +385,7 @@ class BigBrainAgent(CaptureAgent):
 
                 actions = currState.getLegalActions(opponent)
                 action = random.sample(actions, 1)[0]
-                print(currState.getAgentState(opponent))
+                #print(currState.getAgentState(opponent))
                 # Error here, can't dump food from something that isn't a pacman
                 newParticle[i] = currState.generateSuccessor(opponent, action).getAgentPosition(opponent)
 
@@ -403,6 +397,7 @@ class BigBrainAgent(CaptureAgent):
         for particle in self.particles:
             beliefs[particle] += 1
         beliefs.normalize()
+        self.debugDraw([beliefs.argMax()[0], beliefs.argMax()[1]], [0,.5,.5], clear = True)
         return beliefs
 
     def setGhostPosition(self, gameState, ghostPosition, oppIndex):
@@ -417,3 +412,181 @@ class BigBrainAgent(CaptureAgent):
             conf = game.Configuration(pos, game.Directions.STOP)
             gameState.data.agentStates[oppIndices[index]] = game.AgentState(conf, False)
         return gameState
+
+    def getLikelyOppPosition(self):
+        beliefs = self.getBeliefDistribution()
+        return beliefs.argMax()
+
+
+class PacmanQAgent(BigBrainAgent):
+  "Exactly the same as QLearningAgent, but with different default parameters"
+
+  """
+  A base class for reflex agents that chooses score-maximizing actions
+  """
+
+  def registerInitialState(self, gameState):
+      BigBrainAgent.registerInitialState(self, gameState)
+
+      self.start = gameState.getAgentPosition(self.index)
+      self.qValues = util.Counter()
+      self.epsilon=0.05
+      self.gamma = self.discount =0.8
+      self.alpha=0.3
+      self.weights = util.Counter()
+
+
+  def chooseAction(self, state):
+      """
+        Compute the action to take in the current state.  With
+        probability self.epsilon, we should take a random action and
+        take the best policy action otherwise.  Note that if there are
+        no legal actions, which is the case at the terminal state, you
+        should choose None as the action.
+        HINT: You might want to use util.flipCoin(prob)
+        HINT: To pick randomly from a list, use random.choice(list)
+      """
+      startTime = time.time()
+
+      while (not self.cutoffTest(startTime, 0.5)):
+          self.observeState()
+
+      # Pick Action
+      legalActions = state.getLegalActions(self.index)
+      action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
+      self.update(state, action, state.generateSuccessor(self.index, action), -0.1)
+      print(action, self.computeValueFromQValues(state))
+      return action
+
+  def update(self, state, action, nextState, reward):
+    """
+       Should update your weights based on transition
+    """
+    difference = reward + self.discount*self.computeValueFromQValues(nextState) - self.getQValue(state, action)
+
+    for feature in self.getFeatures(state, action).sortedKeys():
+        self.weights[feature] += self.alpha*difference*self.getFeatures(state, action)[feature]
+
+    return
+
+
+  def computeActionFromQValues(self, state):
+    """
+      Compute the best action to take in a state.  Note that if there
+      are no legal actions, which is the case at the terminal state,
+      you should return None.
+    """
+    return None if len(state.getLegalActions(self.index)) == 0 else max([ (self.getQValue(state, action), action) for action in state.getLegalActions(self.index)], key=lambda x : x[0])[1]
+
+  def computeValueFromQValues(self, state):
+    """
+      Returns max_action Q(state,action)
+      where the max is over legal actions.  Note that if
+      there are no legal actions, which is the case at the
+      terminal state, you should return a value of 0.0.
+    """
+    return 0 if len(state.getLegalActions(self.index)) == 0 else max([self.getQValue(state, action) for action in state.getLegalActions(self.index)])
+
+  def getWeights(self):
+    return self.weights
+
+  def getQValue(self, state, action):
+    """
+      Should return Q(state,action) = w * featureVector
+      where * is the dotProduct operator
+    """
+    return self.getFeatures(state, action).__mul__(self.weights)
+
+
+  def closestFood(self, pos, food, walls):
+        """
+        closestFood -- this is similar to the function that we have
+        worked on in the search project; here its all in one place
+        """
+        fringe = [(pos[0], pos[1], 0)]
+        expanded = set()
+        while fringe:
+            pos_x, pos_y, dist = fringe.pop(0)
+            if (pos_x, pos_y) in expanded:
+                continue
+            expanded.add((pos_x, pos_y))
+            # if we find a food at this location then exit
+            if food[pos_x][pos_y]:
+                return dist
+            # otherwise spread out from the location to its neighbours
+            nbrs = Actions.getLegalNeighbors((pos_x, pos_y), walls)
+            for nbr_x, nbr_y in nbrs:
+                fringe.append((nbr_x, nbr_y, dist+1))
+        # no food found
+        return None
+
+  def getFeatures(self, state, action):
+        '''
+        # ADD TO FEATURES:
+        --> Whether an opp is scared
+        --> Whether an opp is pacman
+        --> Number of our food left
+        --> Number of their food left
+        --> Our capsules / their capsules
+        --> Are we scared
+        --> How close are we to our teammate
+        --> How close the ghosts are to each other
+        --> score :-(
+        '''
+
+        # extract the grid of food and wall locations and get the ghost locations
+        food = self.getFood(state)
+        walls = state.getWalls()
+        ghosts = self.getLikelyOppPosition()
+
+        features = util.Counter()
+
+        features["bias"] = 1.0
+
+        # compute the location of pacman after he takes the action
+        x, y = state.getAgentPosition(self.index)
+        dx, dy = Actions.directionToVector(action)
+        next_x, next_y = int(x + dx), int(y + dy)
+
+        # count the number of ghosts 1-step away
+        features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
+
+        # if there is no danger of ghosts then add the food feature
+        if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
+            features["eats-food"] = 1.0
+
+        dist = self.closestFood((next_x, next_y), food, walls)
+        if dist is not None:
+            # make the distance a number less than one otherwise the update
+            # will diverge wildly
+            features["closest-food"] = float(dist) / (walls.width * walls.height)
+        features.divideAll(10.0)
+        return features
+
+
+
+
+
+
+
+
+
+'''
+DON'T LOOK DOWN HERE
+'''
+def memoize(f):
+    """ Memoization decorator for functions taking one or more arguments. """
+
+    class memodict(dict):
+        def __init__(self, func):
+            print(dir(func))
+            self.func = func
+
+        def __call__(self, *args):
+            return self[args]
+
+        def __missing__(self, key):
+            result = self[key] = self.func(*key)
+            return result
+
+    return memodict(f)
