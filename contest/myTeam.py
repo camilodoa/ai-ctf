@@ -13,6 +13,7 @@
 
 
 from captureAgents import CaptureAgent
+from keyboardAgents import KeyboardAgent
 import random, time, util
 from util import manhattanDistance
 from game import Directions
@@ -26,7 +27,7 @@ import time
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='PacmanQAgent', second='PacmanQAgent'):
+               first='BigBrainAgent', second='BigBrainAgent'):
     """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -145,9 +146,8 @@ class BigBrainAgent(CaptureAgent):
         actions = gameState.getLegalActions(self.index)
 
         # Particle filtering
-        while (not self.cutoffTest(startTime, 0.5)):
-            self.observeState()
-            self.elapseTime(gameState)
+        self.observeState()
+        self.elapseTime(gameState)
 
         max_score = -99999
         max_action = None
