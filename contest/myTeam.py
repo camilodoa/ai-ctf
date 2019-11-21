@@ -27,7 +27,7 @@ import time
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='BigBrainAgent', second='BigBrainAgent'):
+               first='PacmanQAgent', second='PacmanQAgent'):
     """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -353,17 +353,26 @@ class BigBrainAgent(CaptureAgent):
     def observeState(self):
         gameState = self.getCurrentObservation()
         pacmanPosition = gameState.getAgentPosition(self.index)
-        noisyDistances = gameState.getAgentDistances()
+        oppList = self.getOpponents(gameState)
+        noisyDistances = [gameState.getAgentDistances()[x] for x in oppList]
         if len(noisyDistances) < self.numGhosts:
             return
+
+        #If we see a ghost, we know a ghost
+        for i, opp in enumerate(oppList):
+            pos = gameState.getAgentPosition(opp)
+            if pos is not None:
+                for j, particle in enumerate(self.particles):
+                    newParticle = list(particle)
+                    newParticle[i] = pos
+                    self.particles[j] = tuple(newParticle)
 
         weights = util.Counter()
         for particle in self.particles:
             weight = 1
-            for i, opponent in enumerate(self.getOpponents(gameState)):
+            for i, opponent in enumerate(oppList):
                 distance = util.manhattanDistance(pacmanPosition, particle[i])
-                prob = gameState.getDistanceProb(distance, noisyDistances[opponent])
-                #print(distance, prob)
+                prob = gameState.getDistanceProb(distance, noisyDistances[i])
                 weight *= prob
             weights[particle] += weight
 
@@ -385,12 +394,23 @@ class BigBrainAgent(CaptureAgent):
 
                 actions = currState.getLegalActions(opponent)
                 action = random.sample(actions, 1)[0]
-                #print(currState.getAgentState(opponent))
-                # Error here, can't dump food from something that isn't a pacman
-                newParticle[i] = currState.generateSuccessor(opponent, action).getAgentPosition(opponent)
+                newParticle[i] = self.generateSuccessorPosition(oldParticle[i], action)
 
             newParticles.append(tuple(newParticle))
         self.particles = newParticles
+
+    def generateSuccessorPosition(self, position, action):
+        newPosition = list(position)
+        if action == "West":
+            newPosition[0] -= 1
+        elif action == "East":
+            newPosition[0] += 1
+        elif action == "South":
+            newPosition[1] -= 1
+        elif action == "North":
+            newPosition[1] += 1
+
+        return tuple(newPosition)
 
     def getBeliefDistribution(self):
         beliefs = util.Counter()
@@ -446,17 +466,43 @@ class PacmanQAgent(BigBrainAgent):
         HINT: You might want to use util.flipCoin(prob)
         HINT: To pick randomly from a list, use random.choice(list)
       """
+      actions = state.getLegalActions(self.index)
       startTime = time.time()
 
-      while (not self.cutoffTest(startTime, 0.5)):
-          self.observeState()
+
+      self.observeState()
+      self.elapseTime(state)
+
+      max_score = -99999
+      max_action = None
+      alpha = -99999
+      beta = 99999
+      for action in actions:
+          # Update successor ghost positions to be the max pos in our particle distributions
+          successor = state.generateSuccessor(self.index, action)
+          ghosts = self.getBeliefDistribution().argMax()
+          successor = self.setGhostPositions(successor, ghosts, self.getOpponents(state))
+
+          result = self.minimax(successor, startTime, 1, alpha, beta)
+          if result >= max_score:
+              max_score = result
+              max_action = action
+
+          if max_score > beta:
+              return max_action
+
+          alpha = max(alpha, max_score)
+
+      self.update(state, max_action, state.generateSuccessor(self.index, max_action), -10)
+      # print(max_action, self.computeValueFromQValues(state.generateSuccessor(self.index, max_action)))
+      return max_action
 
       # Pick Action
-      legalActions = state.getLegalActions(self.index)
-      action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
-      self.update(state, action, state.generateSuccessor(self.index, action), -0.1)
-      print(action, self.computeValueFromQValues(state))
-      return action
+      # legalActions = state.getLegalActions(self.index)
+      # action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
+      #
+      # print(action, self.computeValueFromQValues(state))
+      # return action
 
   def update(self, state, action, nextState, reward):
     """
@@ -563,9 +609,8 @@ class PacmanQAgent(BigBrainAgent):
         features.divideAll(10.0)
         return features
 
-
-
-
+  def evaluationFunction(state):
+        return self.computeValueFromQValues(state)
 
 
 
