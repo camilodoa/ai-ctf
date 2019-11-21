@@ -652,7 +652,7 @@ class PacmanQAgent(BigBrainAgent):
         if not features["#-of-ghosts-1-step-away"]:
           if food[next_x][next_y]:
             features["eats-food"] = 1.0
-            
+
           # can we eat a capsule?
           if features["on-opponent-side"] == 1 and capsules[next_x][next_y]:
             features["eats-capsule"] = 1.0
@@ -674,8 +674,8 @@ class GodAgent1(PacmanQAgent):
         PacmanQAgent.registerInitialState(self, gameState)
         self.weightfile = "./GodWeights1.pkl"
         self.weights = util.Counter()
-        # file = open(self.weightfile, 'r')
-        # self.weights = pickle.load(file)
+        file = open(self.weightfile, 'r')
+        self.weights = pickle.load(file)
 
 class GodAgent2(PacmanQAgent):
     def registerInitialState(self, gameState):
@@ -683,8 +683,8 @@ class GodAgent2(PacmanQAgent):
         PacmanQAgent.registerInitialState(self, gameState)
         self.weightfile = "./GodWeights2.pkl"
         self.weights = util.Counter()
-        # file = open(self.weightfile, 'r')
-        # self.weights = pickle.load(file)
+        file = open(self.weightfile, 'r')
+        self.weights = pickle.load(file)
 
 
 
