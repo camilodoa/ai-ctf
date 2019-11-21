@@ -21,13 +21,14 @@ import game
 from game import Directions, Actions
 import itertools
 import time
+import pickle
 
 #################
 # Team creation #
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='PacmanQAgent', second='PacmanQAgent'):
+               first='GodAgent1', second='GodAgent2'):
     """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -453,7 +454,9 @@ class PacmanQAgent(BigBrainAgent):
       self.epsilon=0.05
       self.gamma = self.discount =0.8
       self.alpha=0.3
-      self.weights = util.Counter()
+      self.weightfile = "./weightFile"
+      file = open(self.weightfile, 'r')
+      self.weights = pickle.load(file)
 
 
   def chooseAction(self, state):
@@ -466,43 +469,45 @@ class PacmanQAgent(BigBrainAgent):
         HINT: You might want to use util.flipCoin(prob)
         HINT: To pick randomly from a list, use random.choice(list)
       """
-      actions = state.getLegalActions(self.index)
-      startTime = time.time()
-
-
       self.observeState()
       self.elapseTime(state)
 
-      max_score = -99999
-      max_action = None
-      alpha = -99999
-      beta = 99999
-      for action in actions:
-          # Update successor ghost positions to be the max pos in our particle distributions
-          successor = state.generateSuccessor(self.index, action)
-          ghosts = self.getBeliefDistribution().argMax()
-          successor = self.setGhostPositions(successor, ghosts, self.getOpponents(state))
+      # actions = state.getLegalActions(self.index)
+      # startTime = time.time()
 
-          result = self.minimax(successor, startTime, 1, alpha, beta)
-          if result >= max_score:
-              max_score = result
-              max_action = action
+      # max_score = -99999
+      # max_action = None
+      # alpha = -99999
+      # beta = 99999
+      # for action in actions:
+      #     # Update successor ghost positions to be the max pos in our particle distributions
+      #     successor = state.generateSuccessor(self.index, action)
+      #     ghosts = self.getBeliefDistribution().argMax()
+      #     successor = self.setGhostPositions(successor, ghosts, self.getOpponents(state))
+      #
+      #     result = self.minimax(successor, startTime, 1, alpha, beta)
+      #     if result >= max_score:
+      #         max_score = result
+      #         max_action = action
+      #
+      #     if max_score > beta:
+      #         return max_action
+      #
+      #     alpha = max(alpha, max_score)
 
-          if max_score > beta:
-              return max_action
-
-          alpha = max(alpha, max_score)
-
-      self.update(state, max_action, state.generateSuccessor(self.index, max_action), -10)
+      # self.update(state, max_action, state.generateSuccessor(self.index, max_action), -10)
       # print(max_action, self.computeValueFromQValues(state.generateSuccessor(self.index, max_action)))
-      return max_action
+      # return max_action
 
       # Pick Action
-      # legalActions = state.getLegalActions(self.index)
-      # action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
-      #
-      # print(action, self.computeValueFromQValues(state))
-      # return action
+      legalActions = state.getLegalActions(self.index)
+      action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
+      self.update(state, action, state.generateSuccessor(self.index, action), -0.1)
+
+      file = open(self.weightfile,'wb')
+      pickle.dump(self.weights, file)
+      file.close()
+      return action
 
   def update(self, state, action, nextState, reward):
     """
@@ -613,6 +618,33 @@ class PacmanQAgent(BigBrainAgent):
         return self.computeValueFromQValues(state)
 
 
+class GodAgent1(PacmanQAgent):
+    def registerInitialState(self, gameState):
+        BigBrainAgent.registerInitialState(self, gameState)
+
+        self.start = gameState.getAgentPosition(self.index)
+        self.qValues = util.Counter()
+        self.epsilon=0.05
+        self.gamma = self.discount =0.8
+        self.alpha=0.3
+        self.weightfile = "./GodWeights1.pkl"
+        self.weights = util.Counter()
+        # file = open(self.weightfile, 'r')
+        # self.weights = pickle.load(file)
+
+class GodAgent2(PacmanQAgent):
+    def registerInitialState(self, gameState):
+        BigBrainAgent.registerInitialState(self, gameState)
+
+        self.start = gameState.getAgentPosition(self.index)
+        self.qValues = util.Counter()
+        self.epsilon=0.05
+        self.gamma = self.discount =0.8
+        self.alpha=0.3
+        self.weightfile = "./GodWeights2.pkl"
+        self.weights = util.Counter()
+        # file = open(self.weightfile, 'r')
+        # self.weights = pickle.load(file)
 
 
 
