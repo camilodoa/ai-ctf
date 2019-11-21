@@ -450,13 +450,13 @@ class PacmanQAgent(BigBrainAgent):
       BigBrainAgent.registerInitialState(self, gameState)
 
       self.start = gameState.getAgentPosition(self.index)
+      opp = self.getOpponents(gameState)
+      self.border =abs(self.start[0] - gameState.getInitialAgentPosition(opp[0])[0])
       self.qValues = util.Counter()
       self.epsilon=0.05
       self.gamma = self.discount =0.8
       self.alpha=0.3
       self.weightfile = "./weightFile"
-      file = open(self.weightfile, 'r')
-      self.weights = pickle.load(file)
 
 
   def chooseAction(self, state):
@@ -621,12 +621,7 @@ class PacmanQAgent(BigBrainAgent):
 class GodAgent1(PacmanQAgent):
     def registerInitialState(self, gameState):
         BigBrainAgent.registerInitialState(self, gameState)
-
-        self.start = gameState.getAgentPosition(self.index)
-        self.qValues = util.Counter()
-        self.epsilon=0.05
-        self.gamma = self.discount =0.8
-        self.alpha=0.3
+        PacmanQAgent.registerInitialState(self, gameState)
         self.weightfile = "./GodWeights1.pkl"
         self.weights = util.Counter()
         # file = open(self.weightfile, 'r')
@@ -635,12 +630,7 @@ class GodAgent1(PacmanQAgent):
 class GodAgent2(PacmanQAgent):
     def registerInitialState(self, gameState):
         BigBrainAgent.registerInitialState(self, gameState)
-
-        self.start = gameState.getAgentPosition(self.index)
-        self.qValues = util.Counter()
-        self.epsilon=0.05
-        self.gamma = self.discount =0.8
-        self.alpha=0.3
+        PacmanQAgent.registerInitialState(self, gameState)
         self.weightfile = "./GodWeights2.pkl"
         self.weights = util.Counter()
         # file = open(self.weightfile, 'r')
