@@ -246,85 +246,7 @@ class BigBrainAgent(CaptureAgent):
         return False
 
     def evaluationFunction(self, gameState):
-        # Our plan:
-        # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
-        ghostStates = [gameState.getAgentState(index) for index in self.getOpponents(gameState)]
-        n = self.getFood(gameState).count()
-        pos = gameState.getAgentPosition(self.index)
-        foodStates = self.getFood(gameState)
-        capsules = self.getCapsules(gameState)
-
-        # Fear
-        fear = 0
-        fear_factor = 10
-        ghosts = []
-        gamma = .5
-
-        # Calculate distances to nearest ghost
-        if ghostStates:
-            for ghost in ghostStates:
-                if ghost.scaredTimer == 0:
-                    md = manhattanDistance(ghost.getPosition(), pos)
-                    ghosts.append(md)
-
-        # Sort ghosts based on distance
-        ghosts = sorted(ghosts)
-        # Only worry about ghosts if they're nearby
-        ghosts = [ghost for ghost in ghosts if ghost < 5]
-
-        for i in range(len(ghosts)):
-            # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
-            # by a gamma^i where 0<gamma<1 and by a fear_factor
-            fear += (fear_factor / ghosts[i]) * (gamma ** i)
-
-        # Record food coordinates
-        foods = []
-        for i in range(len(foodStates)):
-            for j in range(len(foodStates[i])):
-                if foodStates[i][j]:
-                    foods.append((i, j))
-
-        # Calculate distances to nearest foods
-        foodDistances = []
-        if foods:
-            for food in foods:
-                md = manhattanDistance(food, pos)
-                foodDistances.append(md)
-        foodDistances = sorted(foodDistances)
-
-        hunger_factor = 18
-        # Hunger factor
-        hunger = 0
-        foodGamma = -0.4
-        for i in range(len(foodDistances)):
-            # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
-            # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
-            hunger += (hunger_factor / foodDistances[i]) * (foodGamma ** i)
-
-        # Beserk mode
-        scaredGhosts = []
-        for ghost in ghostStates:
-            if ghost.scaredTimer > 0:
-                md = manhattanDistance(ghost.getPosition(), pos)
-                scaredGhosts.append(md)
-
-        # Senzu bean
-        capsuleDistances = []
-        for capsule in capsules:
-            md = manhattanDistance(capsule, pos)
-            capsuleDistances.append(md)
-
-        capsuleDistances = sorted(capsuleDistances)
-        for i in range(len(capsuleDistances)):
-            hunger += (hunger_factor * 4 / capsuleDistances[i]) * (foodGamma ** i)
-
-        scaredGhosts = sorted(scaredGhosts)
-        scaredGhosts = [ghost for ghost in scaredGhosts if ghost < 5]
-        for i in range(len(scaredGhosts)):
-            hunger += (hunger_factor * 2 / scaredGhosts[i]) * (foodGamma ** i)
-
-        score = hunger - fear + random.uniform(0, .5) - (n + 7) ** 2 + gameState.getScore() - (len(capsules) + 30) ** 2
-        return score
+        return util.raiseNotDefined()
 
     '''
     ################################################################
@@ -461,7 +383,9 @@ class PacmanQAgent(BigBrainAgent):
 
       self.start = gameState.getAgentPosition(self.index)
       opp = self.getOpponents(gameState)
-      self.border =abs(self.start[0] - gameState.getInitialAgentPosition(opp[0])[0])/2
+      walls = gameState.getWalls()
+      self.border =abs(self.start[0] - walls.width)/2
+
       self.selfHome = self.border + (self.start[0] - self.border)
       self.oppHome = self.border + (gameState.getInitialAgentPosition(opp[0])[0] - self.border)
       self.qValues = util.Counter()
@@ -469,9 +393,11 @@ class PacmanQAgent(BigBrainAgent):
       self.gamma = self.discount =0.8
       self.alpha=0.3
       self.reward = -0.1
-      self.weightfile = "./weightFile"
       self.isOnRedTeam = gameState.isOnRedTeam(self.index)
       self.useMinimax = True
+      self.save = True
+      self.numOurFood = self.getFoodYouAreDefending(gameState).count(True)
+      self.numFood = self.getFood(gameState).count(True)
 
 
   def chooseAction(self, state):
@@ -517,25 +443,23 @@ class PacmanQAgent(BigBrainAgent):
 
               action = max_action
 
-          reward = self.getReward(state.generateSuccessor(self.index, action))
+          reward = self.getReward(state.generateSuccessor(self.index, action), state)
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
-          # file = open(self.weightfile,'wb')
-          # pickle.dump(self.weights, file)
-          # file.close()
-
-          return action
       else:
           # Pick Action
           legalActions = state.getLegalActions(self.index)
           action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
-          reward = self.getReward(state.generateSuccessor(self.index, action))
+          reward = self.getReward(state.generateSuccessor(self.index, action), state)
+          print("reward for ", self.index, " is ", reward)
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
-          # file = open(self.weightfile,'wb')
-          # pickle.dump(self.weights, file)
-          # file.close()
-          return action
+      if self.save:
+          file = open(self.weightfile,'wb')
+          pickle.dump(self.weights, file)
+          file.close()
+
+      return action
 
   def update(self, state, action, nextState, reward):
     """
@@ -543,9 +467,8 @@ class PacmanQAgent(BigBrainAgent):
     """
     difference = reward + self.discount*self.computeValueFromQValues(nextState) - self.getQValue(state, action)
 
-    for feature in self.getBasicFeatures(state, action).sortedKeys():
+    for feature in self.getFeatures(state, action).sortedKeys():
         self.weights[feature] += self.alpha*difference*self.getFeatures(state, action)[feature]
-
     return
 
 
@@ -600,39 +523,114 @@ class PacmanQAgent(BigBrainAgent):
         return None
 
   def getFeatures(self, state, action):
-        # extract the grid of food and wall locations and get the ghost locations
+        return util.raiseNotDefined()
+
+  def evaluationFunction(self, state):
+        return self.computeValueFromQValues(state)
+
+  def getReward(self, state, lastState):
+      food = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood().count(True)
+      ourFood = state.getRedFood().count(True) if self.isOnRedTeam else state.getBlueFood().count(True)
+
+      ourFood_score = self.numOurFood - ourFood  # Total minus current
+      food_score = self.numFood - food # Total minus current
+
+      opponents = self.getLikelyOppPosition()
+      pos = state.getAgentPosition(self.index)
+      ghosts = []
+      oppPacmen = []
+      # Fill out opponent arrays
+      if self.isOnRedTeam:
+          for opp in opponents:
+              if opp[0] < self.border:
+                  oppPacmen.append(opp)
+              else:
+                  ghosts.append(opp)
+      else:
+          for opp in opponents:
+              if opp[0] >= self.border:
+                  oppPacmen.append(opp)
+              else:
+                  ghosts.append(opp)
+
+      # State score
+      score = self.reward + state.getScore() - lastState.getScore()
+
+      # Food score
+      score += food_score - ourFood_score # Good score - loss
+      print(ourFood_score, food_score)
+
+      # Onside calculation
+      if self.isOnRedTeam:
+          if pos[0] > self.border:
+              isOnside = False
+          else:
+              isOnside = True
+      else:
+          if pos[0] <= self.border:
+              isOnside = False
+          else:
+              isOnside = True
+
+      # isWin
+      if food <= 2:
+          if isOnside == True:
+              score += 99999
+
+      # isLose
+      if ourFood <= 2:
+          if len(oppPacmen) == 0:
+              score -= 99999
+
+      return score
+
+
+class GoodAggroAgent(PacmanQAgent):
+    def registerInitialState(self, gameState):
+        BigBrainAgent.registerInitialState(self, gameState)
+        PacmanQAgent.registerInitialState(self, gameState)
+        self.epsilon = 0.1
+        self.gamma = self.discount = 0.8
+        self.alpha = 0.2
+        self.reward = -1
+        self.depth = 4
+        self.useMinimax = False
+
+        self.weightfile = "./GoodWeights1.pkl"
+        self.weights = util.Counter()
+        file = open(self.weightfile, 'r')
+        self.weights = pickle.load(file)
+
+    def getFeatures(self, state, action):
+        # Agressive features
+        features = util.Counter()
+        pos = state.getAgentPosition(self.index)
+        successor = state.generateSuccessor(self.index, action)
+        # Meta data
         food = self.getFood(state)
-        capsules = state.getBlueCapsules() if self.isOnRedTeam else state.getRedCapsules()
         walls = state.getWalls()
-        opponnents = self.getLikelyOppPosition()
+        opponents = self.getLikelyOppPosition()
         ghosts = []
         oppPacmen = []
-
-        features = util.Counter()
-
+        # Fill out opponent arrays
         if self.isOnRedTeam:
-          if state.getAgentPosition(self.index) > self.border:
-            # is on opponent side
-            features["on-opponent-side"] = 1.0
+            for opp in opponents:
+                if opp[0] < self.border:
+                    oppPacmen.append(opp)
+                else:
+                    ghosts.append(opp)
         else:
-          if state.getAgentPosition(self.index) < self.border:
-            # is on opponent side
-            features["on-opponent-side"] = 1.0
+            for opp in opponents:
+                if opp[0] >= self.border:
+                    oppPacmen.append(opp)
+                else:
+                    ghosts.append(opp)
 
-        if self.isOnRedTeam:
-          for opp in opponnents:
-            if opp < self.border:
-              oppPacmen.append(opp)
-            else:
-              ghosts.append(opp)
-        else:
-          for opp in opponnents:
-            if opp > self.border:
-              oppPacmen.append(opp)
-            else:
-              ghosts.append(opp)
 
-        features["bias"] = 1.0
+        features['onOffence'] = 1
+        if not successor.getAgentState(self.index).isPacman: features['onOffence'] = 0
+
+        features['successorNumFood'] = -self.getFood(successor).count(True)
 
         # compute the location of pacman after he takes the action
         x, y = state.getAgentPosition(self.index)
@@ -642,50 +640,9 @@ class PacmanQAgent(BigBrainAgent):
         # count the number of ghosts 1-step away
         features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
 
-        # number of ghosts
-        features["#-of-ghosts"] = len(ghosts)
-
-        # number of opponent pacment
-        features["#-of-opponent-pacmen"] = len(oppPacmen)
-
-        # number of scared ghosts
-        features["#-of-scared-ghosts"] = sum(g.scaredTimer > 0 in g for g in ghosts)
-
-        # number of our food left
-        features["our-food-left"] = state.getRedFood().count(True) if self.isOnRedTeam else state.getBlueFood().count(True)
-
-        # number of opponent food left
-        features["opponent-food-left"] = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood().count(True)
-
-        # number of our capsules left
-        features["our-capsules-left"] = state.getRedCapsules().count(True) if self.isOnRedTeam else state.getBlueCapsules().count(True)
-
-        # number of their capsules left
-        features["opponent-capsules-left"] = state.getBlueCapsules().count(True) if self.isOnRedTeam else state.getRedCapsules().count(True)
-
-        # time left on our scared timer
-        features["scared-time-left"] = state.getAgentState(self.index).scaredTimer
-
-        # how close are we to teammate
-        features["distance-to-teammate"] = manhattanDistance(state.getAgentPosition(self.index), state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]))
-
-        # how close are the opponents to each other
-        features["distance-between-opponents"] = manhattanDistance(opponnents[0], opponnents[1])
-
-        # number of ghosts
-        features["#-of-ghosts"] = len(ghosts)
-
-        # number of opponent pacment
-        features["#-of-opponent-pacmen"] = len(oppPacmen)
-
-        # if there is no danger of ghosts then add the food and capsule feature
-        if not features["#-of-ghosts-1-step-away"]:
-          if food[next_x][next_y]:
+        # if there is no danger of ghosts then add the food feature
+        if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
             features["eats-food"] = 1.0
-
-          # can we eat a capsule?
-          if features["on-opponent-side"] == 1 and capsules[next_x][next_y]:
-            features["eats-capsule"] = 1.0
 
         dist = self.closestFood((next_x, next_y), food, walls)
         if dist is not None:
@@ -696,648 +653,61 @@ class PacmanQAgent(BigBrainAgent):
         features.divideAll(10.0)
         return features
 
-  def getBasicFeatures(self, state, action):
-      # extract the grid of food and wall locations and get the ghost locations
-     food = self.getFood(state)
-     walls = state.getWalls()
-     opponents = self.getLikelyOppPosition()
-     ghosts = []
-     oppPacmen = []
-
-     features = util.Counter()
-
-     if self.isOnRedTeam:
-       if state.getAgentPosition(self.index)[0] > self.border:
-         # is on opponent side
-         features["on-opponent-side"] = 1.0
-     else:
-       if state.getAgentPosition(self.index)[0] < self.border:
-         # is on opponent side
-         features["on-opponent-side"] = 1.0
-
-     if self.isOnRedTeam:
-       for opp in opponents:
-         if opp[0] < self.border:
-           oppPacmen.append(opp)
-         else:
-           ghosts.append(opp)
-     else:
-       for opp in opponents:
-         if opp[0] >= self.border:
-           oppPacmen.append(opp)
-         else:
-           ghosts.append(opp)
-
-     features["bias"] = 1.0
-
-     # compute the location of pacman after he takes the action
-     x, y = state.getAgentPosition(self.index)
-     dx, dy = Actions.directionToVector(action)
-     next_x, next_y = int(x + dx), int(y + dy)
-
-     # count the number of ghosts 1-step away
-     features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
-
-     # count the number of pacmen 1-step away
-     features["#-of-pacmen-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in oppPacmen)
-
-     # if there is no danger of ghosts then add the food feature
-     if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
-         features["eats-food"] = 1.0
-
-     # eat pacman
-     if features["#-of-pacmen-1-step-away"] >= 0 and (next_x, next_y) in oppPacmen:
-         features["eats-pacmen"] = 1.0
-
-     dist = self.closestFood((next_x, next_y), food, walls)
-     if dist is not None:
-         # make the distance a number less than one otherwise the update
-         # will diverge wildly
-         features["closest-food"] = float(dist) / (walls.width * walls.height)
-
-     dist_to_ghosts = [manhattanDistance(oppo, (x,y)) for oppo in ghosts]
-     if len(dist_to_ghosts) > 0:
-        closest_ghost = min(dist_to_ghosts)
-        features["closest_ghost"] = float(closest_ghost) / (walls.width * walls.height)
-
-     dist_to_pacmen = [manhattanDistance(oppo, (x,y)) for oppo in oppPacmen]
-     if len(dist_to_pacmen) > 0:
-         closest_pacmen = min(dist_to_pacmen)
-         features["closest_pacmen"] = float(closest_pacmen) / (walls.width * walls.height)
-
-     # how close are we to teammate
-     dist_to_teammate = manhattanDistance(state.getAgentPosition(self.index), state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]))
-     if dist_to_teammate is not None:
-         features["distance-to-teammate"] = float(dist_to_teammate)/ (walls.width * walls.height)
-
-     # number of ghosts
-     features["#-of-ghosts"] = len(ghosts)
-
-     # number of opponent pacment
-     features["#-of-opponent-pacmen"] = len(oppPacmen)
-
-     features.divideAll(10.0)
-     return features
-
-  def evaluationFunction(self, state):
-        return self.computeValueFromQValues(state)
-
-  def getReward(self, state):
-      walls = state.getWalls()
-      pos = state.getAgentPosition(self.index)
-      lastPos = state.getAgentPosition(self.index)
-      score = self.reward
-
-      if pos == self.start:
-          score += -99999
-
-      # Opp's food
-      food = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood()
-      ourFood = state.getRedFood().count(True) if self.isOnRedTeam else state.getBlueFood()
-      opponents = self.getLikelyOppPosition()
-      ghosts = []
-      oppPacmen = []
-
-      if self.isOnRedTeam:
-        for opp in opponents:
-          if opp[0] < self.border:
-            oppPacmen.append(opp)
-          else:
-            ghosts.append(opp)
-      else:
-        for opp in opponents:
-          if opp[0] >= self.border:
-            oppPacmen.append(opp)
-          else:
-            ghosts.append(opp)
-
-      if  pos in ghosts:
-          score += -99999
-      elif pos in oppPacmen:
-          score += 99999
-      elif food[pos[0]][pos[1]]:
-          score += 10 + random.uniform(0, .5)
-
-      # Bringing food back is good :-)
-      elif food.count(True) <= 2:
-          if self.isOnRedTeam:
-            if state.getAgentPosition(self.index)[0] > self.border:
-              # is on opponent side
-              score += -100
-            else:
-              # is on our side
-              score += 100000
-          else:
-            if state.getAgentPosition(self.index)[0] < self.border:
-              # is on opponent side
-              score += -100
-            else:
-              # is on our side
-              score += 100000
-
-      elif ourFood.count(True) <= 2:
-          score += -9999
-
-      score -= len(oppPacmen)*100
-      score -= sum((pos[0], pos[1]) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
-
-      # How much food we have left
-      score += ourFood.count(True)
-
-      # How much food opp has left
-      score -= food.count(False)
-
-      if pos == state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]):
-        score -= 10
-
-      if pos == lastPos:
-        score -= 10
-
-      return score + random.uniform(0, .5)
-
-
-class GoodAggroAgent(PacmanQAgent):
-    def registerInitialState(self, gameState):
-        BigBrainAgent.registerInitialState(self, gameState)
-        PacmanQAgent.registerInitialState(self, gameState)
-        self.epsilon = 0.2
-        self.gamma = self.discount = 0.8
-        self.alpha = 0.2
-        self.reward = -1
-        self.depth = 4
-        self.useMinimax = True
-
-        self.weightfile = "./GoodWeights1.pkl"
-        self.weights = util.Counter()
-        # file = open(self.weightfile, 'r')
-        # self.weights = pickle.load(file)
-
-    def getReward(self, state):
-        walls = state.getWalls()
-        pos = state.getAgentPosition(self.index)
-        lastPos = state.getAgentPosition(self.index)
-        score = self.reward
-
-        # Being killed is never good
-        if pos == self.start:
-            score += -99999
-
-        # Only care about food you can eat food
-        food = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood()
-        opponents = self.getLikelyOppPosition()
-        ghosts = []
-        oppPacmen = []
-
-        if self.isOnRedTeam:
-          for opp in opponents:
-            if opp[0] < self.border:
-              oppPacmen.append(opp)
-            else:
-              ghosts.append(opp)
-        else:
-          for opp in opponents:
-            if opp[0] >= self.border:
-              oppPacmen.append(opp)
-            else:
-              ghosts.append(opp)
-
-        if  pos in ghosts:
-            score += -99999
-        elif food[pos[0]][pos[1]]:
-            score += 100
-
-        # Bringing food back is good :-)
-        elif food.count(True) <= 2:
-            if self.isOnRedTeam:
-              if state.getAgentPosition(self.index)[0] > self.border:
-                # is on opponent side
-                score += -100
-              else:
-                # is on our side
-                score += 100000
-            else:
-              if state.getAgentPosition(self.index)[0] < self.border:
-                # is on opponent side
-                score += -100
-              else:
-                # is on our side
-                score += 100000
-
-        # How much food opp has left
-        score -= food.count(False)
-
-        if pos == state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]):
-          score -= 10
-
-        if pos == lastPos:
-          score -= 10
-
-        return score + random.uniform(0, .5)
-
-    def evaluationFunction(self, gameState):
-        # Our plan:
-        # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
-        foodStates = self.getFood(gameState)
-        opponents = self.getOpponents(gameState)
-        opponnentPositions = self.getLikelyOppPosition()
-        capsules = []
-        pos = gameState.getAgentPosition(self.index)
-        # capsulegrid = gameState.getBlueCapsules() if self.isOnRedTeam else gameState.getRedCapsules()
-        # for i in range(len(capsulegrid)):
-        #     for j in range(len(capsulegrid[i])):
-        #         if capsulegrid[i][j]:
-        #             capsules.append((i, j))
-        ghosts = []
-        oppPacmen = []
-        ghostPositions = []
-        oppPacmenPositions = []
-
-        if self.isOnRedTeam:
-          for i, opp in enumerate(opponnentPositions):
-            if opp[0] < self.border:
-              oppPacmenPositions.append(opp)
-              oppPacmen.append(opponents[i])
-            else:
-              ghostPositions.append(opp)
-              ghosts.append(opponents[i])
-        else:
-          for i, opp in enumerate(opponnentPositions):
-            if opp[0] > self.border:
-              oppPacmenPositions.append(opp)
-              oppPacmen.append(opponents[i])
-            else:
-              ghostPositions.append(opp)
-              ghosts.append(opponents[i])
-
-
-        # Fear
-        fear = 0
-        fear_factor = 5
-        gamma = .5
-        ghostDistances = []
-
-        # Calculate distances to nearest ghost
-        for i, ghost in enumerate(ghosts):
-            if gameState.getAgentState(ghost).scaredTimer == 0:
-                md = self.getMazeDistance(ghostPositions[i], pos)
-                ghostDistances.append(md)
-
-        # Sort ghosts based on distance
-        ghostDistances = sorted(ghostDistances)
-        # Only worry about ghosts if they're nearby
-        ghostDistances = [ghostDist for ghostDist in ghostDistances if ghostDist < 5]
-
-        if 0 in ghostDistances:
-            return -99999
-
-        for i in range(len(ghostDistances)):
-            # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
-            # by a gamma^i where 0<gamma<1 and by a fear_factor
-            fear += (fear_factor / (ghostDistances[i] + 1)) * (gamma ** i)
-
-        # Record food coordinates
-        foods = []
-        for i, row in enumerate(foodStates):
-            for j, food in enumerate(row):
-                if foodStates[i][j]:
-                    foods.append((i, j))
-
-        n = len(foods)
-
-        # Calculate distances to nearest foods
-        foodDistances = []
-        if foods:
-            for food in foods:
-                md = self.getMazeDistance(food, pos)
-                foodDistances.append(md)
-        foodDistances = sorted(foodDistances)
-
-        hunger_factor = 100
-        # Hunger factor
-        hunger = 0
-        foodGamma = 0.8
-        for i in range(len(foodDistances)):
-            # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
-            # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
-            hunger += (hunger_factor / (foodDistances[i]+ 1)) * (foodGamma ** i)
-
-        # Beserk mode
-          # Lighter for Defensive
-        scaredGhosts = []
-        for i, ghost in enumerate(ghosts):
-            if gameState.getAgentState(ghost).scaredTimer > 0:
-                md = manhattanDistance(ghostPositions[i], pos)
-                scaredGhosts.append(md)
-
-        # # Senzu bean
-        #   # Lighter for Defensive
-        # capsuleDistances = []
-        # for capsule in capsules:
-        #     md = manhattanDistance(capsule, pos)
-        #     capsuleDistances.append(md)
-        #
-        # capsuleDistances = sorted(capsuleDistances)
-        # for i in range(len(capsuleDistances)):
-        #     hunger += (hunger_factor * 4 / capsuleDistances[i]) * (foodGamma ** i)
-
-        scaredGhosts = sorted(scaredGhosts)
-        scaredGhosts = [ghost for ghost in scaredGhosts if ghost < 5]
-        for i in range(len(scaredGhosts)):
-            hunger += (hunger_factor * 2 / scaredGhosts[i]) * (foodGamma ** i)
-
-        # Onside calculation
-        if self.isOnRedTeam:
-            if pos[0] > self.border:
-                isOnside = False
-            else:
-                isOnside = True
-        else:
-            if pos[0] <= self.border:
-                isOnside = False
-            else:
-                isOnside = True
-
-        # isWin
-        if len(foods)<= 2:
-            if isOnside == True:
-                return 99999
-
-        humility_factor = 1
-        humility = -10
-        distanceToHome = abs(pos[0] - self.selfHome)
-        distanceToOpp = abs(pos[0] - self.oppHome)
-
-        if gameState.getAgentState(self.index).numCarrying > 0:
-            humility = (gameState.getAgentState(self.index).numCarrying / distanceToHome) * humility_factor
-
-        graduation = self.getMazeDistance(pos, gameState.getInitialAgentPosition(self.index))
-        # Capsule lighter for Offensive
-        score = hunger - fear + random.uniform(0, 1) - (n + 11) ** 2 + gameState.getScore() + humility + graduation
-        return score
-
 
 
 class GoodDefensiveAgent(PacmanQAgent):
     def registerInitialState(self, gameState):
         BigBrainAgent.registerInitialState(self, gameState)
         PacmanQAgent.registerInitialState(self, gameState)
-        self.epsilon = 0.2
+        self.epsilon = 0.1
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
         self.depth = 3
-        self.useMinimax = True
+        self.useMinimax = False
 
         self.weightfile = "./GoodWeights2.pkl"
         self.weights = util.Counter()
-        # file = open(self.weightfile, 'r')
-        # self.weights = pickle.load(file)
+        file = open(self.weightfile, 'r')
+        self.weights = pickle.load(file)
 
-    def getReward(self, state):
-        walls = state.getWalls()
+    def getFeatures(self, state, action):
+        # Defensive features
+        features = util.Counter()
         pos = state.getAgentPosition(self.index)
-        lastPos = state.getAgentPosition(self.index)
-        score = self.reward
-
-        if pos == self.start:
-            score += -99999
-
-        # Only care about our food
-        ourFood = state.getRedFood().count(True) if self.isOnRedTeam else state.getBlueFood()
+        successor = state.generateSuccessor(self.index, action)
+        # Meta data
+        food = self.getFoodYouAreDefending(state)
+        walls = state.getWalls()
         opponents = self.getLikelyOppPosition()
         ghosts = []
         oppPacmen = []
-
+        # Fill out opponent arrays
         if self.isOnRedTeam:
-          for opp in opponents:
-            if opp[0] < self.border:
-              oppPacmen.append(opp)
-            else:
-              ghosts.append(opp)
+            for opp in opponents:
+                if opp[0] < self.border:
+                    oppPacmen.append(opp)
+                else:
+                    ghosts.append(opp)
         else:
-          for opp in opponents:
-            if opp[0] >= self.border:
-              oppPacmen.append(opp)
-            else:
-              ghosts.append(opp)
-
-        if  pos in ghosts:
-            score += -99999
-        elif pos in oppPacmen:
-            score += 99999
-
-        elif ourFood.count(True) <= 2:
-            score += -9999
-
-        score -= len(oppPacmen)*100
-
-        # How much food we have left
-        score += ourFood.count(True)
-
-        if pos == state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]):
-          score -= 10
-
-        if pos == lastPos:
-          score -= 10
-
-        return score + random.uniform(0, .5)
-
-    def evaluationFunction(self, gameState):
-        foodStates = self.getFoodYouAreDefending(gameState)
-        opponents = self.getOpponents(gameState)
-        opponnentPositions = self.getLikelyOppPosition()
-        capsules = []
-        capsulegrid = gameState.getBlueCapsules() if self.isOnRedTeam else gameState.getRedCapsules()
-        for i in range(len(capsulegrid)):
-            for j in range(len(capsulegrid[i])):
-                if capsulegrid[i][j]:
-                    capsules.append((i, j))
-        ghosts = []
-        oppPacmen = []
-        ghostPositions = []
-        oppPacmenPositions = []
-
-        if self.isOnRedTeam:
-          for i, opp in enumerate(opponnentPositions):
-            if opp[0] < self.border:
-              oppPacmenPositions.append(opp)
-              oppPacmen.append(opponents[i])
-            else:
-              ghostPositions.append(opp)
-              ghosts.append(opponents[i])
-        else:
-          for i, opp in enumerate(opponnentPositions):
-            if opp[0] > self.border:
-              oppPacmenPositions.append(opp)
-              oppPacmen.append(opponents[i])
-            else:
-              ghostPositions.append(opp)
-              ghosts.append(opponents[i])
-
-        # Record food coordinates
-        foods = []
-        for i, row in enumerate(foodStates):
-            for j, food in enumerate(row):
-                if food:
-                    foods.append((i, j))
-
-        # Our plan:
-        # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
-
-        # Defensive doesn't care about food
-        # n = self.getFood(gameState).count()
-        # foodStates = self.getFood(gameState)
-
-        pos = gameState.getAgentPosition(self.index)
-
-        # Defensive doesn't care about capsules
-          # Add to Offensive, make sure only care about opponents'
-        # capsules = self.getCapsules(gameState)
-
-        # # If you can win that's the best possible move
-        # if gameState.isWin():
-        #     return 99999 + random.uniform(0, .5)
-        #
-        # if gameState.isLose():
-        #     return -99999
-
-        # Fear
-        fear = 0
-        fear_factor = 10
-        gamma = .5
-        ghostDistances = []
-
-        # Calculate distances to nearest ghost
-        for i, ghost in enumerate(ghosts):
-            if gameState.getAgentState(ghost).scaredTimer == 0:
-                md = self.getMazeDistance(ghostPositions[i], pos)
-                ghostDistances.append(md)
-
-        # Sort ghosts based on distance
-        ghostDistances = sorted(ghostDistances)
-        # Only worry about ghosts if they're nearby
-        ghostDistances = [ghostDist for ghostDist in ghostDistances if ghostDist < 5]
-
-        for i in range(len(ghostDistances)):
-            # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
-            # by a gamma^i where 0<gamma<1 and by a fear_factor
-            fear += (fear_factor / ghostDistances[i]) * (gamma ** i)
-
-        # Record food coordinates
-        # foods = []
-        # for i in range(len(foodStates)):
-        #     for j in range(len(foodStates[i])):
-        #         if foodStates[i][j]:
-        #             foods.append((i, j))
-
-        # Calculate distances to nearest foods
-        # foodDistances = []
-        # if foods:
-        #     for food in foods:
-        #         md = manhattanDistance(food, pos)
-        #         foodDistances.append(md)
-        # foodDistances = sorted(foodDistances)
-
-        hunger_factor = 5
-        # Hunger factor
-        hunger = 0
-        foodGamma = -0.4
-        # for i in range(len(foodDistances)):
-        #     # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
-        #     # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
-        #     hunger += (hunger_factor / foodDistances[i]) * (foodGamma ** i)
-
-        # Beserk mode
-          # Lighter for Defensive
-        scaredGhosts = []
-        for i, ghost in enumerate(ghosts):
-            if gameState.getAgentState(ghost).scaredTimer > 0:
-                md = self.getMazeDistance(ghostPositions[i], pos)
-                scaredGhosts.append(md)
+            for opp in opponents:
+                if opp[0] >= self.border:
+                    oppPacmen.append(opp)
+                else:
+                    ghosts.append(opp)
 
 
-        # NOTE TO CAMILO
-        # Decrease how much Defensive cares about senzu beans and scared ghosts
-        # Make them care about attacking opponent pacmen (minimizing distance of oppPacmenPositions)
+        features['numPac'] = len(oppPacmen)
+        if len(oppPacmen) > 0:
+          dists = [self.getMazeDistance(pos, a) for a in oppPacmen]
+          features['closestPac'] = float(min(dists)) / (walls.width * walls.height)
 
-        # Senzu bean
-          # Lighter for Defensive
-        capsuleDistances = []
-        for capsule in capsules:
-            md = manhattanDistance(capsule, pos)
-            capsuleDistances.append(md)
+        if action == Directions.STOP: features['stop'] = 1
+        rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
+        if action == rev: features['reverse'] = 1
 
-        capsuleDistances = sorted(capsuleDistances)
-        for i in range(len(capsuleDistances)):
-            hunger += (hunger_factor * 4 / capsuleDistances[i]) * (foodGamma ** i)
+        features['onDefense'] = 1
+        if successor.getAgentState(self.index).isPacman: features['onDefense'] = 0
 
-        scaredGhosts = sorted(scaredGhosts)
-        scaredGhosts = [ghost for ghost in scaredGhosts if ghost < 5]
-        for i in range(len(scaredGhosts)):
-            hunger += (hunger_factor * 2 / scaredGhosts[i]) * (foodGamma ** i)
-
-
-        # Attack opponent pacmen
-          # Defensive cares about this a lot
-
-        # Paternal protective instincts
-        protecc = 0
-        protecc_factor = 10
-        protecc_gamma = .5
-        pacmanDistances = []
-
-        # Calculate distances to pacmen
-        for oppPacmanPos in oppPacmenPositions:
-          md = self.getMazeDistance(oppPacmanPos, pos)
-          pacmanDistances.append(md)
-
-        for i in range(len(pacmanDistances)):
-            protecc += (protecc_factor / abs(pacmanDistances[i] + 1)) * (protecc_gamma ** i)
-
-        # Enemy onside calculation
-        for pos in oppPacmenPositions:
-          if self.isOnRedTeam:
-              if pos[0] <= self.border:
-                  oppIsOnside = False
-              else:
-                  oppIsOnside = True
-          else:
-              if pos[0] > self.border:
-                  oppIsOnside = False
-              else:
-                  oppIsOnside = True
-
-        # isLose
-        if len(foods)<= 2:
-            if oppIsOnside == True:
-                return -99999
-
-        # distanceToHome = abs(pos[0] - self.selfHome)
-        # homecoming = (4 / (distanceToHome + 1))
-        graduation = self.getMazeDistance(pos, gameState.getInitialAgentPosition(self.index))
-
-        score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore() + graduation
-        return score
-
-
-
-
-'''
-DON'T LOOK DOWN HERE
-'''
-def memoize(f):
-    """ Memoization decorator for functions taking one or more arguments. """
-
-    class memodict(dict):
-        def __init__(self, func):
-            print(dir(func))
-            self.func = func
-
-        def __call__(self, *args):
-            return self[args]
-
-        def __missing__(self, key):
-            result = self[key] = self.func(*key)
-            return result
-
-    return memodict(f)
+        features.divideAll(10.0)
+        return features
