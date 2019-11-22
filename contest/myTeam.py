@@ -1008,10 +1008,10 @@ class GoodAggroAgent(PacmanQAgent):
                 foodDistances.append(md)
         foodDistances = sorted(foodDistances)
 
-        hunger_factor = 18
+        hunger_factor = 50
         # Hunger factor
         hunger = 0
-        foodGamma = -0.4
+        foodGamma = 0.8
         for i in range(len(foodDistances)):
             # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
             # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
@@ -1066,7 +1066,7 @@ class GoodAggroAgent(PacmanQAgent):
             humility = (gameState.getAgentState(self.index).numCarrying / distanceToBorder) * humility_factor
 
         # Capsule lighter for Offensive
-        score = hunger - fear + random.uniform(0, .5) - (n + 7) ** 2 + gameState.getScore()+ humility
+        score = hunger - fear + random.uniform(0, .5) - (n + 8) ** 2 + gameState.getScore() + humility
         print(score)
         return score
 
@@ -1287,7 +1287,7 @@ class GoodDefensiveAgent(PacmanQAgent):
           pacmanDistances.append(md)
 
         for i in range(len(pacmanDistances)):
-            protecc += (protecc_factor / pacmanDistances[i] + 1) * (protecc_gamma ** i)
+            protecc += (protecc_factor / abs(pacmanDistances[i])) * (protecc_gamma ** i)
 
         # Enemy onside calculation
         for pos in oppPacmenPositions:
