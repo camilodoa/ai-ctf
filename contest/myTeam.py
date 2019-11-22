@@ -28,7 +28,7 @@ import pickle
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='GoodAgent1', second='GoodAgent2'):
+               first='GoodAggroAgent', second='GoodDefensiveAgent'):
     """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -108,6 +108,8 @@ class DummyAgent(CaptureAgent):
 # (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
 # Student side autograding was added by Brad Miller, Nick Hay, and
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
+
+static_particles = None
 
 class BigBrainAgent(CaptureAgent):
 
@@ -340,22 +342,29 @@ class BigBrainAgent(CaptureAgent):
     '''
 
     def initializeParticles(self, gameState):
-        permutations = list(itertools.product(self.legalPositions, repeat=self.numGhosts))
-        random.shuffle(permutations)
+        global static_particles
+        if static_particles is None:
+            permutations = list(itertools.product(self.legalPositions, repeat=self.numGhosts))
+            random.shuffle(permutations)
 
-        particlesPerPerm = self.numParticles // len(permutations)
-        self.particles = []
-        for permutation in permutations:
-            for i in xrange(particlesPerPerm):
-                self.particles.append(permutation)
+            particlesPerPerm = self.numParticles // len(permutations)
+            self.particles = []
+            for permutation in permutations:
+                for i in xrange(particlesPerPerm):
+                    self.particles.append(permutation)
 
-        remainderParticles = self.numParticles - (particlesPerPerm * len(permutations))
-        for i in xrange(remainderParticles):
-            self.particles.append(random.choice(permutations))
-
-        return self.particles
+            remainderParticles = self.numParticles - (particlesPerPerm * len(permutations))
+            for i in xrange(remainderParticles):
+                self.particles.append(random.choice(permutations))
+            static_particles = self.particles
+            return self.particles
+        else:
+            self.particles = static_particles
+            return self.particles
 
     def observeState(self):
+        global static_particles
+        self.particles = static_particles
         gameState = self.getCurrentObservation()
         pacmanPosition = gameState.getAgentPosition(self.index)
         oppList = self.getOpponents(gameState)
@@ -387,8 +396,11 @@ class BigBrainAgent(CaptureAgent):
             weights.normalize()
             for i in xrange(len(self.particles)):
                 self.particles[i] = util.sample(weights)
+        static_particles = self.particles
 
     def elapseTime(self, gameState):
+        global static_particles
+        self.particles = static_particles
         newParticles = []
         for oldParticle in self.particles:
             newParticle = list(oldParticle)  # A list of ghost positions
@@ -403,6 +415,7 @@ class BigBrainAgent(CaptureAgent):
 
             newParticles.append(tuple(newParticle))
         self.particles = newParticles
+        static_particles = self.particles
 
     def generateSuccessorPosition(self, position, action):
         newPosition = list(position)
@@ -509,7 +522,7 @@ class PacmanQAgent(BigBrainAgent):
 
               action = max_action
 
-          reward = self.getReward(state, state.generateSuccessor(self.index, action))
+          reward = self.getReward(state.generateSuccessor(self.index, action))
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
           file = open(self.weightfile,'wb')
@@ -521,13 +534,12 @@ class PacmanQAgent(BigBrainAgent):
           # Pick Action
           legalActions = state.getLegalActions(self.index)
           action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
-          reward = self.getReward(state, state.generateSuccessor(self.index, action))
+          reward = self.getReward(state.generateSuccessor(self.index, action))
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
           file = open(self.weightfile,'wb')
           pickle.dump(self.weights, file)
           file.close()
-          print(self.computeValueFromQValues(state.generateSuccessor(self.index, action)))
           return action
 
   def update(self, state, action, nextState, reward):
@@ -665,6 +677,11 @@ class PacmanQAgent(BigBrainAgent):
         # how close are the opponents to each other
         features["distance-between-opponents"] = manhattanDistance(opponnents[0], opponnents[1])
 
+        # number of ghosts
+        features["#-of-ghosts"] = len(ghosts)
+
+        # number of opponent pacment
+        features["#-of-opponent-pacmen"] = len(oppPacmen)
 
         # if there is no danger of ghosts then add the food and capsule feature
         if not features["#-of-ghosts-1-step-away"]:
@@ -751,7 +768,18 @@ class PacmanQAgent(BigBrainAgent):
      dist_to_pacmen = [manhattanDistance(oppo, (x,y)) for oppo in oppPacmen]
      if len(dist_to_pacmen) > 0:
          closest_pacmen = min(dist_to_pacmen)
-         features["closest_ghost"] = float(closest_pacmen) / (walls.width * walls.height)
+         features["closest_pacmen"] = float(closest_pacmen) / (walls.width * walls.height)
+
+     # how close are we to teammate
+     dist_to_teammate = manhattanDistance(state.getAgentPosition(self.index), state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]))
+     if dist_to_teammate is not None:
+         features["distance-to-teammate"] = float(dist_to_teammate)/ (walls.width * walls.height)
+
+     # number of ghosts
+     features["#-of-ghosts"] = len(ghosts)
+
+     # number of opponent pacment
+     features["#-of-opponent-pacmen"] = len(oppPacmen)
 
      features.divideAll(10.0)
      return features
@@ -759,11 +787,11 @@ class PacmanQAgent(BigBrainAgent):
   def evaluationFunction(self, state):
         return self.computeValueFromQValues(state)
 
-  def getReward(self, state, lastState):
+  def getReward(self, state):
       walls = state.getWalls()
       pos = state.getAgentPosition(self.index)
       lastPos = state.getAgentPosition(self.index)
-      score = (state.getScore() - lastState.getScore()) + (self.reward)
+      score = self.reward
 
       if pos == self.start:
           score += -99999
@@ -789,34 +817,33 @@ class PacmanQAgent(BigBrainAgent):
             ghosts.append(opp)
 
       if  pos in ghosts:
-          print("uh oh")
           score += -99999
       elif pos in oppPacmen:
-          print("OKAY")
-          score += 99999 + random.uniform(0, .5)
+          score += 99999
       elif food[pos[0]][pos[1]]:
           score += 10 + random.uniform(0, .5)
+
       # Bringing food back is good :-)
       elif food.count(True) <= 2:
           if self.isOnRedTeam:
             if state.getAgentPosition(self.index)[0] > self.border:
               # is on opponent side
-              score += -10
+              score += -100
             else:
               # is on our side
-              score += 100
+              score += 100000
           else:
             if state.getAgentPosition(self.index)[0] < self.border:
               # is on opponent side
-              score += -10
+              score += -100
             else:
               # is on our side
-              score += 100
+              score += 100000
 
       elif ourFood.count(True) <= 2:
-          score += -999
+          score += -9999
 
-      score -= len(oppPacmen)*5
+      score -= len(oppPacmen)*100
       score -= sum((pos[0], pos[1]) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
 
       # How much food we have left
@@ -826,7 +853,7 @@ class PacmanQAgent(BigBrainAgent):
       score -= food.count(False)
 
       if pos == state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]):
-        score -= 1
+        score -= 10
 
       if pos == lastPos:
         score -= 10
@@ -834,37 +861,151 @@ class PacmanQAgent(BigBrainAgent):
       return score + random.uniform(0, .5)
 
 
-class GoodAgent1(PacmanQAgent):
+class GoodAggroAgent(PacmanQAgent):
     def registerInitialState(self, gameState):
         BigBrainAgent.registerInitialState(self, gameState)
         PacmanQAgent.registerInitialState(self, gameState)
-        self.epsilon = 0.25
-        self.gamma = self.discount =0.8
-        self.alpha = 0.3
-        self.reward = -2
+        self.epsilon = 0.2
+        self.gamma = self.discount = 0.8
+        self.alpha = 0.2
+        self.reward = -1
         self.depth = 2
         self.useMinimax = False
 
-        self.weightfile = "./GodWeights1.pkl"
+        self.weightfile = "./GoodWeights1.pkl"
         self.weights = util.Counter()
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
 
-class GoodAgent2(PacmanQAgent):
+    def getReward(self, state):
+        walls = state.getWalls()
+        pos = state.getAgentPosition(self.index)
+        lastPos = state.getAgentPosition(self.index)
+        score = self.reward
+
+        # Being killed is never good
+        if pos == self.start:
+            score += -99999
+
+        # Only care about food you can eat food
+        food = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood()
+        opponents = self.getLikelyOppPosition()
+        ghosts = []
+        oppPacmen = []
+
+        if self.isOnRedTeam:
+          for opp in opponents:
+            if opp[0] < self.border:
+              oppPacmen.append(opp)
+            else:
+              ghosts.append(opp)
+        else:
+          for opp in opponents:
+            if opp[0] >= self.border:
+              oppPacmen.append(opp)
+            else:
+              ghosts.append(opp)
+
+        if  pos in ghosts:
+            score += -99999
+        elif food[pos[0]][pos[1]]:
+            score += 100
+
+        # Bringing food back is good :-)
+        elif food.count(True) <= 2:
+            if self.isOnRedTeam:
+              if state.getAgentPosition(self.index)[0] > self.border:
+                # is on opponent side
+                score += -100
+              else:
+                # is on our side
+                score += 100000
+            else:
+              if state.getAgentPosition(self.index)[0] < self.border:
+                # is on opponent side
+                score += -100
+              else:
+                # is on our side
+                score += 100000
+
+        # How much food opp has left
+        score -= food.count(False)
+
+        if pos == state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]):
+          score -= 10
+
+        if pos == lastPos:
+          score -= 10
+
+        return score + random.uniform(0, .5)
+
+
+
+class GoodDefensiveAgent(PacmanQAgent):
     def registerInitialState(self, gameState):
         BigBrainAgent.registerInitialState(self, gameState)
         PacmanQAgent.registerInitialState(self, gameState)
-        self.epsilon = 0.25
-        self.gamma = self.discount =0.8
-        self.alpha = 0.3
-        self.reward = -2
+        self.epsilon = 0.2
+        self.gamma = self.discount = 0.8
+        self.alpha = 0.2
+        self.reward = -1
         self.depth = 2
         self.useMinimax = False
 
-        self.weightfile = "./GodWeights2.pkl"
+        self.weightfile = "./GoodWeights2.pkl"
         self.weights = util.Counter()
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
+
+    def getReward(self, state):
+        walls = state.getWalls()
+        pos = state.getAgentPosition(self.index)
+        lastPos = state.getAgentPosition(self.index)
+        score = self.reward
+
+        if pos == self.start:
+            score += -99999
+
+        # Only care about our food
+        ourFood = state.getRedFood().count(True) if self.isOnRedTeam else state.getBlueFood()
+        opponents = self.getLikelyOppPosition()
+        ghosts = []
+        oppPacmen = []
+
+        if self.isOnRedTeam:
+          for opp in opponents:
+            if opp[0] < self.border:
+              oppPacmen.append(opp)
+            else:
+              ghosts.append(opp)
+        else:
+          for opp in opponents:
+            if opp[0] >= self.border:
+              oppPacmen.append(opp)
+            else:
+              ghosts.append(opp)
+
+        if  pos in ghosts:
+            score += -99999
+        elif pos in oppPacmen:
+            score += 99999
+
+        elif ourFood.count(True) <= 2:
+            score += -9999
+
+        score -= len(oppPacmen)*100
+
+        # How much food we have left
+        score += ourFood.count(True)
+
+        if pos == state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]):
+          score -= 10
+
+        if pos == lastPos:
+          score -= 10
+
+        return score + random.uniform(0, .5)
+
 
 
 
