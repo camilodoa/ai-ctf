@@ -28,7 +28,7 @@ import pickle
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='GodAgent1', second='GodAgent2'):
+               first='GoodAgent1', second='GoodAgent2'):
     """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -137,6 +137,7 @@ class BigBrainAgent(CaptureAgent):
         self.ghostAgents = []
         self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
         self.numParticles = 600
+        self.depth = 10
         self.initializeParticles(gameState)
 
     def chooseAction(self, gameState):
@@ -160,7 +161,7 @@ class BigBrainAgent(CaptureAgent):
             ghosts = self.getBeliefDistribution().argMax()
             successor = self.setGhostPositions(successor, ghosts, self.getOpponents(gameState))
 
-            result = self.minimax(successor, startTime, 1, alpha, beta)
+            result = self.minimax(successor, startTime, 1, alpha, beta, 1)
             if result >= max_score:
                 max_score = result
                 max_action = action
@@ -180,8 +181,7 @@ class BigBrainAgent(CaptureAgent):
     ################################################################
     '''
 
-    # @memoize
-    def minimax(self, s, t, turn, alpha, beta):
+    def minimax(self, s, t, turn, alpha, beta, depth):
         '''
         s: gameState
         t: time
@@ -190,7 +190,7 @@ class BigBrainAgent(CaptureAgent):
         if s.isOver():
             return self.evaluationFunction(s)
 
-        if self.cutoffTest(t, 0.9):
+        if self.cutoffTest(t, 0.6, depth):
             return self.evaluationFunction(s)
 
         teams = self.getTeam(s) + self.getOpponents(s)
@@ -200,7 +200,7 @@ class BigBrainAgent(CaptureAgent):
             actions = s.getLegalActions(teams[turn])
 
             for action in actions:
-                result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta)
+                result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta, depth + 1)
                 if result > max_action:
                     max_action = result
 
@@ -212,16 +212,18 @@ class BigBrainAgent(CaptureAgent):
             return max_action
 
         if turn >= 2:
-            return 0
             min_action = 99999
             actions = s.getLegalActions(teams[turn])
-            # Change this to setGhostPosition for highest probabilities
 
             for action in actions:
                 if turn == 3:
-                    result = self.minimax(s.generateSuccessor(teams[turn], action), t, 0, alpha, beta)
+                    newPos = self.generateSuccessorPosition(s.getAgentPosition(teams[turn]), action)
+                    successor = self.setGhostPosition(s, newPos, teams[turn])
+                    result = self.minimax(sucessor, t, turn + 1, alpha, beta, depth + 1)
                 else:
-                    result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta)
+                    newPos = self.generateSuccessorPosition(s.getAgentPosition(teams[turn]), action)
+                    successor = self.setGhostPosition(s, newPos, teams[turn])
+                    result = self.minimax(successor, t, 0, alpha, beta, depth + 1)
 
                 if result < min_action:
                     min_action = result
@@ -233,9 +235,11 @@ class BigBrainAgent(CaptureAgent):
 
             return min_action
 
-    def cutoffTest(self, t, limit):
+    def cutoffTest(self, t, limit, depth):
         timeElapsed = time.time() - t
-        if timeElapsed > limit:
+        if timeElapsed >= limit:
+            return True
+        elif depth >= self.depth:
             return True
         return False
 
@@ -453,11 +457,13 @@ class PacmanQAgent(BigBrainAgent):
       opp = self.getOpponents(gameState)
       self.border =abs(self.start[0] - gameState.getInitialAgentPosition(opp[0])[0])/2
       self.qValues = util.Counter()
-      self.epsilon=0.05
+      self.epsilon=0.1
       self.gamma = self.discount =0.8
       self.alpha=0.3
+      self.reward = -0.1
       self.weightfile = "./weightFile"
       self.isOnRedTeam = gameState.isOnRedTeam(self.index)
+      self.useMinimax = True
 
 
   def chooseAction(self, state):
@@ -473,42 +479,56 @@ class PacmanQAgent(BigBrainAgent):
       self.observeState()
       self.elapseTime(state)
 
-      # actions = state.getLegalActions(self.index)
-      # startTime = time.time()
+      actions = state.getLegalActions(self.index)
+      if self.useMinimax:
+          if util.flipCoin(self.epsilon):
+              action = random.choice(actions)
+          else:
+              self.computeActionFromQValues(state)
 
-      # max_score = -99999
-      # max_action = None
-      # alpha = -99999
-      # beta = 99999
-      # for action in actions:
-      #     # Update successor ghost positions to be the max pos in our particle distributions
-      #     successor = state.generateSuccessor(self.index, action)
-      #     ghosts = self.getBeliefDistribution().argMax()
-      #     successor = self.setGhostPositions(successor, ghosts, self.getOpponents(state))
-      #
-      #     result = self.minimax(successor, startTime, 1, alpha, beta)
-      #     if result >= max_score:
-      #         max_score = result
-      #         max_action = action
-      #
-      #     if max_score > beta:
-      #         return max_action
-      #
-      #     alpha = max(alpha, max_score)
+              startTime = time.time()
+              max_score = -99999
+              max_action = None
+              alpha = -99999
+              beta = 99999
+              for action in actions:
+                  # Update successor ghost positions to be the max pos in our particle distributions
+                  successor = state.generateSuccessor(self.index, action)
+                  ghosts = self.getBeliefDistribution().argMax()
+                  successor = self.setGhostPositions(successor, ghosts, self.getOpponents(state))
 
-      # self.update(state, max_action, state.generateSuccessor(self.index, max_action), -10)
-      # print(max_action, self.computeValueFromQValues(state.generateSuccessor(self.index, max_action)))
-      # return max_action
+                  result = self.minimax(successor, startTime, 1, alpha, beta, 1)
+                  if result >= max_score:
+                      max_score = result
+                      max_action = action
 
-      # Pick Action
-      legalActions = state.getLegalActions(self.index)
-      action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
-      self.update(state, action, state.generateSuccessor(self.index, action), -0.1)
+                  if max_score > beta:
+                      return max_action
 
-      file = open(self.weightfile,'wb')
-      pickle.dump(self.weights, file)
-      file.close()
-      return action
+                  alpha = max(alpha, max_score)
+
+              action = max_action
+
+          reward = self.getReward(state, state.generateSuccessor(self.index, action))
+          self.update(state, action, state.generateSuccessor(self.index, action), reward)
+
+          file = open(self.weightfile,'wb')
+          pickle.dump(self.weights, file)
+          file.close()
+
+          return action
+      else:
+          # Pick Action
+          legalActions = state.getLegalActions(self.index)
+          action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
+          reward = self.getReward(state, state.generateSuccessor(self.index, action))
+          self.update(state, action, state.generateSuccessor(self.index, action), reward)
+
+          file = open(self.weightfile,'wb')
+          pickle.dump(self.weights, file)
+          file.close()
+          print(self.computeValueFromQValues(state.generateSuccessor(self.index, action)))
+          return action
 
   def update(self, state, action, nextState, reward):
     """
@@ -516,7 +536,7 @@ class PacmanQAgent(BigBrainAgent):
     """
     difference = reward + self.discount*self.computeValueFromQValues(nextState) - self.getQValue(state, action)
 
-    for feature in self.getFeatures(state, action).sortedKeys():
+    for feature in self.getBasicFeatures(state, action).sortedKeys():
         self.weights[feature] += self.alpha*difference*self.getFeatures(state, action)[feature]
 
     return
@@ -645,8 +665,6 @@ class PacmanQAgent(BigBrainAgent):
         # how close are the opponents to each other
         features["distance-between-opponents"] = manhattanDistance(opponnents[0], opponnents[1])
 
-        # score
-        features["score"] = state.getScore()
 
         # if there is no danger of ghosts then add the food and capsule feature
         if not features["#-of-ghosts-1-step-away"]:
@@ -662,25 +680,187 @@ class PacmanQAgent(BigBrainAgent):
             # make the distance a number less than one otherwise the update
             # will diverge wildly
             features["closest-food"] = float(dist) / (walls.width * walls.height)
+
+        features.divideAll(10.0)
         return features
 
-  def evaluationFunction(state):
+  def getBasicFeatures(self, state, action):
+      # extract the grid of food and wall locations and get the ghost locations
+     food = self.getFood(state)
+     walls = state.getWalls()
+     opponents = self.getLikelyOppPosition()
+     ghosts = []
+     oppPacmen = []
+
+     features = util.Counter()
+
+     if self.isOnRedTeam:
+       if state.getAgentPosition(self.index)[0] > self.border:
+         # is on opponent side
+         features["on-opponent-side"] = 1.0
+     else:
+       if state.getAgentPosition(self.index)[0] < self.border:
+         # is on opponent side
+         features["on-opponent-side"] = 1.0
+
+     if self.isOnRedTeam:
+       for opp in opponents:
+         if opp[0] < self.border:
+           oppPacmen.append(opp)
+         else:
+           ghosts.append(opp)
+     else:
+       for opp in opponents:
+         if opp[0] >= self.border:
+           oppPacmen.append(opp)
+         else:
+           ghosts.append(opp)
+
+     features["bias"] = 1.0
+
+     # compute the location of pacman after he takes the action
+     x, y = state.getAgentPosition(self.index)
+     dx, dy = Actions.directionToVector(action)
+     next_x, next_y = int(x + dx), int(y + dy)
+
+     # count the number of ghosts 1-step away
+     features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
+
+     # count the number of pacmen 1-step away
+     features["#-of-pacmen-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in oppPacmen)
+
+     # if there is no danger of ghosts then add the food feature
+     if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
+         features["eats-food"] = 1.0
+
+     # eat pacman
+     if features["#-of-pacmen-1-step-away"] >= 0 and (next_x, next_y) in oppPacmen:
+         features["eats-pacmen"] = 1.0
+
+     dist = self.closestFood((next_x, next_y), food, walls)
+     if dist is not None:
+         # make the distance a number less than one otherwise the update
+         # will diverge wildly
+         features["closest-food"] = float(dist) / (walls.width * walls.height)
+
+     dist_to_ghosts = [manhattanDistance(oppo, (x,y)) for oppo in ghosts]
+     if len(dist_to_ghosts) > 0:
+        closest_ghost = min(dist_to_ghosts)
+        features["closest_ghost"] = float(closest_ghost) / (walls.width * walls.height)
+
+     dist_to_pacmen = [manhattanDistance(oppo, (x,y)) for oppo in oppPacmen]
+     if len(dist_to_pacmen) > 0:
+         closest_pacmen = min(dist_to_pacmen)
+         features["closest_ghost"] = float(closest_pacmen) / (walls.width * walls.height)
+
+     features.divideAll(10.0)
+     return features
+
+  def evaluationFunction(self, state):
         return self.computeValueFromQValues(state)
 
+  def getReward(self, state, lastState):
+      walls = state.getWalls()
+      pos = state.getAgentPosition(self.index)
+      lastPos = state.getAgentPosition(self.index)
+      score = (state.getScore() - lastState.getScore()) + (self.reward)
 
-class GodAgent1(PacmanQAgent):
+      if pos == self.start:
+          score += -99999
+
+      # Opp's food
+      food = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood()
+      ourFood = state.getRedFood().count(True) if self.isOnRedTeam else state.getBlueFood()
+      opponents = self.getLikelyOppPosition()
+      ghosts = []
+      oppPacmen = []
+
+      if self.isOnRedTeam:
+        for opp in opponents:
+          if opp[0] < self.border:
+            oppPacmen.append(opp)
+          else:
+            ghosts.append(opp)
+      else:
+        for opp in opponents:
+          if opp[0] >= self.border:
+            oppPacmen.append(opp)
+          else:
+            ghosts.append(opp)
+
+      if  pos in ghosts:
+          print("uh oh")
+          score += -99999
+      elif pos in oppPacmen:
+          print("OKAY")
+          score += 99999 + random.uniform(0, .5)
+      elif food[pos[0]][pos[1]]:
+          score += 10 + random.uniform(0, .5)
+      # Bringing food back is good :-)
+      elif food.count(True) <= 2:
+          if self.isOnRedTeam:
+            if state.getAgentPosition(self.index)[0] > self.border:
+              # is on opponent side
+              score += -10
+            else:
+              # is on our side
+              score += 100
+          else:
+            if state.getAgentPosition(self.index)[0] < self.border:
+              # is on opponent side
+              score += -10
+            else:
+              # is on our side
+              score += 100
+
+      elif ourFood.count(True) <= 2:
+          score += -999
+
+      score -= len(oppPacmen)*5
+      score -= sum((pos[0], pos[1]) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
+
+      # How much food we have left
+      score += ourFood.count(True)
+
+      # How much food opp has left
+      score -= food.count(False)
+
+      if pos == state.getAgentPosition([index for index in self.getTeam(state) if index is not self.index][0]):
+        score -= 1
+
+      if pos == lastPos:
+        score -= 10
+
+      return score + random.uniform(0, .5)
+
+
+class GoodAgent1(PacmanQAgent):
     def registerInitialState(self, gameState):
         BigBrainAgent.registerInitialState(self, gameState)
         PacmanQAgent.registerInitialState(self, gameState)
+        self.epsilon = 0.25
+        self.gamma = self.discount =0.8
+        self.alpha = 0.3
+        self.reward = -2
+        self.depth = 2
+        self.useMinimax = False
+
         self.weightfile = "./GodWeights1.pkl"
         self.weights = util.Counter()
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
 
-class GodAgent2(PacmanQAgent):
+class GoodAgent2(PacmanQAgent):
     def registerInitialState(self, gameState):
         BigBrainAgent.registerInitialState(self, gameState)
         PacmanQAgent.registerInitialState(self, gameState)
+        self.epsilon = 0.25
+        self.gamma = self.discount =0.8
+        self.alpha = 0.3
+        self.reward = -2
+        self.depth = 2
+        self.useMinimax = False
+
         self.weightfile = "./GodWeights2.pkl"
         self.weights = util.Counter()
         file = open(self.weightfile, 'r')
