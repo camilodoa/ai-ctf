@@ -1065,10 +1065,11 @@ class GoodAggroAgent(PacmanQAgent):
 
         humility_factor = 1
         humility = -100
-        distanceToCenter = abs(pos[0] - self.border)
+        distanceToHome = abs(pos[0] - self.selfHome)
+        distanceToOpp = abs(pos[0] - self.oppHome)
 
         if gameState.getAgentState(self.index).numCarrying > 0:
-            humility = (gameState.getAgentState(self.index).numCarrying / distanceToBorder) * humility_factor
+            humility = (gameState.getAgentState(self.index).numCarrying / distanceToHome) * humility_factor
 
         # Capsule lighter for Offensive
         score = hunger - fear + random.uniform(0, .5) - (n + 11) ** 2 + gameState.getScore() + humility
