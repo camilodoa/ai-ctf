@@ -1006,6 +1006,134 @@ class GoodDefensiveAgent(PacmanQAgent):
 
         return score + random.uniform(0, .5)
 
+      def evaluationFunction(self, gameState):
+        opponents = self.getOpponents(gameState)
+        opponnentPositions = self.getLikelyOppPosition()
+        ghosts = []
+        oppPacmen = []
+        ghostPositions = []
+        oppPacmenPositions = []
+
+        if self.isOnRedTeam:
+          for i, opp in enumerate(opponnentPositions):
+            if opp[0] < self.border:
+              oppPacmenPositions.append(opp)
+              oppPacmen.append(opponents[i])
+            else:
+              ghostPositions.append(opp)
+              ghosts.append(opponents[i])
+        else:
+          for i, opp in enumerate(opponnentPositions):
+            if opp[0] > self.border:
+              oppPacmenPositions.append(opp)
+              oppPacmen.append(opponents[i])
+            else:
+              ghostPositions.append(opp)
+              ghosts.append(opponents[i])
+
+        # Our plan:
+        # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
+        
+        # Defensive doesn't care about food
+        # n = self.getFood(gameState).count()
+        # foodStates = self.getFood(gameState)
+
+        pos = gameState.getAgentPosition(self.index)
+
+        # Defensive doesn't care about capsules
+          # Add to Offensive, make sure only care about opponents'
+        # capsules = self.getCapsules(gameState)
+
+        # # If you can win that's the best possible move
+        # if gameState.isWin():
+        #     return 99999 + random.uniform(0, .5)
+        #
+        # if gameState.isLose():
+        #     return -99999
+
+        # Fear
+        fear = 0
+        fear_factor = 10
+        gamma = .5
+        ghostDistances = []
+
+        # Calculate distances to nearest ghost
+        for i, ghostPos in enumerate(ghostPositions):
+            if ghost[i].scaredTimer == 0:
+                md = manhattanDistance(ghostPos, pos)
+                ghostDistances.append(md)
+
+        # Sort ghosts based on distance
+        ghostDistances = sorted(ghostDistances)
+        # Only worry about ghosts if they're nearby
+        ghostDistances = [ghostDist for ghostDist in ghostDistances if ghostDist < 5]
+
+        for i in range(len(ghostDistances)):
+            # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
+            # by a gamma^i where 0<gamma<1 and by a fear_factor
+            fear += (fear_factor / ghostDistances[i]) * (gamma ** i)
+
+        # Record food coordinates
+        # foods = []
+        # for i in range(len(foodStates)):
+        #     for j in range(len(foodStates[i])):
+        #         if foodStates[i][j]:
+        #             foods.append((i, j))
+
+        # Calculate distances to nearest foods
+        # foodDistances = []
+        # if foods:
+        #     for food in foods:
+        #         md = manhattanDistance(food, pos)
+        #         foodDistances.append(md)
+        # foodDistances = sorted(foodDistances)
+
+        # hunger_factor = 18
+        # # Hunger factor
+        # hunger = 0
+        # foodGamma = -0.4
+        # for i in range(len(foodDistances)):
+        #     # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
+        #     # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
+        #     hunger += (hunger_factor / foodDistances[i]) * (foodGamma ** i)
+
+        # Beserk mode
+          # Lighter for Defensive
+        scaredGhosts = []
+        for i, ghostPos in enumerate(ghostPositions):
+            if ghosts[i].scaredTimer > 0:
+                md = manhattanDistance(ghostPos, pos)
+                scaredGhosts.append(md)
+
+
+        # NOTE TO CAMILO
+        # Decrease how much Defensive cares about senzu beans and scared ghosts
+        # Make them care about attacking opponent pacmen (minimizing distance of oppPacmenPositions)
+
+        # Senzu bean
+          # Lighter for Defensive
+        capsuleDistances = []
+        for capsule in capsules:
+            md = manhattanDistance(capsule, pos)
+            capsuleDistances.append(md)
+
+        capsuleDistances = sorted(capsuleDistances)
+        for i in range(len(capsuleDistances)):
+            hunger += (hunger_factor * 4 / capsuleDistances[i]) * (foodGamma ** i)
+
+        scaredGhosts = sorted(scaredGhosts)
+        scaredGhosts = [ghost for ghost in scaredGhosts if ghost < 5]
+        for i in range(len(scaredGhosts)):
+            hunger += (hunger_factor * 2 / scaredGhosts[i]) * (foodGamma ** i)
+
+        
+        # Attack opponent pacmen
+          # Defensive cares about this a lot
+
+        # Capsule lighter for Defensive
+        # score = hunger - fear + random.uniform(0, .5) - (n + 7) ** 2 + gameState.getScore() - (len(capsules) + 30) ** 2
+        return score
+
 
 
 
