@@ -28,7 +28,7 @@ import pickle
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='GoodAggroAgent', second='GoodAggroAgent'):
+               first='GoodAggroAgent', second='GoodDefensiveAgent'):
     """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -935,7 +935,7 @@ class GoodAggroAgent(PacmanQAgent):
     def evaluationFunction(self, gameState):
         # Our plan:
         # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
-
+        foodState = self.getFood(gameState)
         opponents = self.getOpponents(gameState)
         opponnentPositions = self.getLikelyOppPosition()
         capsules = []
@@ -1135,6 +1135,7 @@ class GoodDefensiveAgent(PacmanQAgent):
         return score + random.uniform(0, .5)
 
     def evaluationFunction(self, gameState):
+        foodState = self.getFoodYouAreDefending(gameState)
         opponents = self.getOpponents(gameState)
         opponnentPositions = self.getLikelyOppPosition()
         capsules = []
@@ -1164,6 +1165,13 @@ class GoodDefensiveAgent(PacmanQAgent):
             else:
               ghostPositions.append(opp)
               ghosts.append(opponents[i])
+
+        # Record food coordinates
+        foods = []
+        for i in range(len(foodStates)):
+            for j in range(len(foodStates[i])):
+                if foodStates[i][j]:
+                    foods.append((i, j))
 
         # Our plan:
         # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
@@ -1279,21 +1287,21 @@ class GoodDefensiveAgent(PacmanQAgent):
             protecc += (protecc_factor / pacmanDistances[i]) * (protecc_gamma ** i)
 
         # Enemy onside calculation
-        pos = gameState.getAgentPosition(self.index)
-        if self.isOnRedTeam:
-            if pos[0] > self.border
-                isOnside = False
-            else:
-                isOnside = True
-        else:
-            if pos[0] <= self.border:
-                isOnside = False
-            else:
-                isOnside = True
+        for pos in oppPacmenPositions:
+          if self.isOnRedTeam:
+              if pos[0] <= self.border
+                  oppIsOnside = False
+              else:
+                  oppIsOnside = True
+          else:
+              if pos[0] > self.border:
+                  oppIsOnside = False
+              else:
+                  oppIsOnside = True
 
         # isLose
         if len(foods)<= 2:
-            if isOnside == True:
+            if oppIsOnside == True:
                 return -99999
 
         score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore() - (len(capsules) + 30) ** 2
