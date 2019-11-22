@@ -1279,6 +1279,24 @@ class GoodDefensiveAgent(PacmanQAgent):
         for i in range(len(pacmanDistances)):
             protecc += (protecc_factor / pacmanDistances[i]) * (protecc_gamma ** i)
 
+        # Enemy onside calculation
+        pos = gameState.getAgentPosition(self.index)
+        if self.isOnRedTeam:
+            if pos[0] > self.border
+                isOnside = False
+            else:
+                isOnside = True
+        else:
+            if pos[0] <= self.border:
+                isOnside = False
+            else:
+                isOnside = True
+
+        # isLose
+        if len(foods)<= 2:
+            if isOnside == True:
+                return -99999
+
         score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore() - (len(capsules) + 30) ** 2
         return score
 
