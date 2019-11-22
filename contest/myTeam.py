@@ -1312,7 +1312,10 @@ class GoodDefensiveAgent(PacmanQAgent):
             if oppIsOnside == True:
                 return -99999
 
-        score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore()
+        distanceToHome = abs(pos[0] - self.selfHome)
+        homecoming = (4 / (distanceToHome + 1))
+
+        score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore() + homecoming
         return score
 
 
