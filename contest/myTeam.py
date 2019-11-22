@@ -864,7 +864,7 @@ class GoodAggroAgent(PacmanQAgent):
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
-        self.depth = 2
+        self.depth = 4
         self.useMinimax = True
 
         self.weightfile = "./GoodWeights1.pkl"
@@ -1073,7 +1073,6 @@ class GoodAggroAgent(PacmanQAgent):
         graduation = self.getMazeDistance(pos, gameState.getInitialAgentPosition(self.index))
         # Capsule lighter for Offensive
         score = hunger - fear + random.uniform(0, 1) - (n + 11) ** 2 + gameState.getScore() + humility + graduation
-        print(score)
         return score
 
 
@@ -1086,13 +1085,13 @@ class GoodDefensiveAgent(PacmanQAgent):
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
-        self.depth = 2
+        self.depth = 3
         self.useMinimax = True
 
         self.weightfile = "./GoodWeights2.pkl"
         self.weights = util.Counter()
-        file = open(self.weightfile, 'r')
-        self.weights = pickle.load(file)
+        # file = open(self.weightfile, 'r')
+        # self.weights = pickle.load(file)
 
     def getReward(self, state):
         walls = state.getWalls()
