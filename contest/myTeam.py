@@ -1287,7 +1287,7 @@ class GoodDefensiveAgent(PacmanQAgent):
           pacmanDistances.append(md)
 
         for i in range(len(pacmanDistances)):
-            protecc += (protecc_factor / pacmanDistances[i]) * (protecc_gamma ** i)
+            protecc += (protecc_factor / pacmanDistances[i] + 1) * (protecc_gamma ** i)
 
         # Enemy onside calculation
         for pos in oppPacmenPositions:
