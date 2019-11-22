@@ -950,7 +950,7 @@ class GoodDefensiveAgent(PacmanQAgent):
         self.alpha = 0.2
         self.reward = -1
         self.depth = 2
-        self.useMinimax = False
+        self.useMinimax = True
 
         self.weightfile = "./GoodWeights2.pkl"
         self.weights = util.Counter()
@@ -1006,9 +1006,15 @@ class GoodDefensiveAgent(PacmanQAgent):
 
         return score + random.uniform(0, .5)
 
-      def evaluationFunction(self, gameState):
+    def evaluationFunction(self, gameState):
         opponents = self.getOpponents(gameState)
         opponnentPositions = self.getLikelyOppPosition()
+        capsules = []
+        capsulegrid = state.getBlueCapsules() if self.isOnRedTeam else state.getRedCapsules()
+        for i in range(len(capsulegrid)):
+            for j in range(len(capsulegrid[i])):
+                if capsulegrid[i][j]:
+                    capsules.append((i, j))
         ghosts = []
         oppPacmen = []
         ghostPositions = []
@@ -1033,7 +1039,7 @@ class GoodDefensiveAgent(PacmanQAgent):
 
         # Our plan:
         # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
-        
+
         # Defensive doesn't care about food
         # n = self.getFood(gameState).count()
         # foodStates = self.getFood(gameState)
@@ -1058,9 +1064,9 @@ class GoodDefensiveAgent(PacmanQAgent):
         ghostDistances = []
 
         # Calculate distances to nearest ghost
-        for i, ghostPos in enumerate(ghostPositions):
-            if ghost[i].scaredTimer == 0:
-                md = manhattanDistance(ghostPos, pos)
+        for i, ghost in enumerate(ghosts):
+            if gameState.getAgentState(ghost).scaredTimer == 0:
+                md = manhattanDistance(ghostPositions[i], pos)
                 ghostDistances.append(md)
 
         # Sort ghosts based on distance
@@ -1100,9 +1106,9 @@ class GoodDefensiveAgent(PacmanQAgent):
         # Beserk mode
           # Lighter for Defensive
         scaredGhosts = []
-        for i, ghostPos in enumerate(ghostPositions):
-            if ghosts[i].scaredTimer > 0:
-                md = manhattanDistance(ghostPos, pos)
+        for i, ghost in enumerate(ghosts):
+            if gameState.getAgentState(ghost).scaredTimer > 0:
+                md = manhattanDistance(ghostPositions[i], pos)
                 scaredGhosts.append(md)
 
 
@@ -1126,7 +1132,7 @@ class GoodDefensiveAgent(PacmanQAgent):
         for i in range(len(scaredGhosts)):
             hunger += (hunger_factor * 2 / scaredGhosts[i]) * (foodGamma ** i)
 
-        
+
         # Attack opponent pacmen
           # Defensive cares about this a lot
 
