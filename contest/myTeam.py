@@ -28,7 +28,7 @@ import pickle
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='GoodAggroAgent', second='GoodDefensiveAgent'):
+               first='GoodAggroAgent', second='GoodAggroAgent'):
     """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -253,13 +253,6 @@ class BigBrainAgent(CaptureAgent):
         pos = gameState.getAgentPosition(self.index)
         foodStates = self.getFood(gameState)
         capsules = self.getCapsules(gameState)
-
-        # # If you can win that's the best possible move
-        # if gameState.isWin():
-        #     return 99999 + random.uniform(0, .5)
-        #
-        # if gameState.isLose():
-        #     return -99999
 
         # Fear
         fear = 0
@@ -525,9 +518,9 @@ class PacmanQAgent(BigBrainAgent):
           reward = self.getReward(state.generateSuccessor(self.index, action))
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
-          file = open(self.weightfile,'wb')
-          pickle.dump(self.weights, file)
-          file.close()
+          # file = open(self.weightfile,'wb')
+          # pickle.dump(self.weights, file)
+          # file.close()
 
           return action
       else:
@@ -537,9 +530,9 @@ class PacmanQAgent(BigBrainAgent):
           reward = self.getReward(state.generateSuccessor(self.index, action))
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
-          file = open(self.weightfile,'wb')
-          pickle.dump(self.weights, file)
-          file.close()
+          # file = open(self.weightfile,'wb')
+          # pickle.dump(self.weights, file)
+          # file.close()
           return action
 
   def update(self, state, action, nextState, reward):
@@ -870,12 +863,12 @@ class GoodAggroAgent(PacmanQAgent):
         self.alpha = 0.2
         self.reward = -1
         self.depth = 2
-        self.useMinimax = False
+        self.useMinimax = True
 
         self.weightfile = "./GoodWeights1.pkl"
         self.weights = util.Counter()
-        file = open(self.weightfile, 'r')
-        self.weights = pickle.load(file)
+        # file = open(self.weightfile, 'r')
+        # self.weights = pickle.load(file)
 
     def getReward(self, state):
         walls = state.getWalls()
@@ -1048,7 +1041,7 @@ class GoodAggroAgent(PacmanQAgent):
         # Onside calculation
         pos = gameState.getAgentPosition(self.index)
         if self.isOnRedTeam:
-            if pos[0] > self.border
+            if pos[0] > self.border:
                 isOnside = False
             else:
                 isOnside = True
@@ -1062,10 +1055,16 @@ class GoodAggroAgent(PacmanQAgent):
         if len(foods)<= 2:
             if isOnside == True:
                 return 99999
-        
+
+        humility_factor = 1
+        humility = -10
+        distanceToBorder = abs(pos[0] - self.border)
+
+        if gameState.getAgentState(self.index).numCarrying > 0:
+            humility = (gameState.getAgentState(self.index).numCarrying / distanceToBorder) * humility_factor
 
         # Capsule lighter for Offensive
-        score = hunger - fear + random.uniform(0, .5) - (n + 7) ** 2 + gameState.getScore() - (len(capsules) + 30) ** 2
+        score = hunger - fear + random.uniform(0, .5) - (n + 7) ** 2 + gameState.getScore() - (len(capsules) + 30) ** 2 + humility
         return score
 
 
