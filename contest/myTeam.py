@@ -462,6 +462,8 @@ class PacmanQAgent(BigBrainAgent):
       self.start = gameState.getAgentPosition(self.index)
       opp = self.getOpponents(gameState)
       self.border =abs(self.start[0] - gameState.getInitialAgentPosition(opp[0])[0])/2
+      self.selfHome = self.border + (self.start[0] - self.border)
+      self.oppHome = self.border + (gameState.getInitialAgentPosition(opp[0])[0] - self.border)
       self.qValues = util.Counter()
       self.epsilon=0.1
       self.gamma = self.discount =0.8
@@ -971,7 +973,7 @@ class GoodAggroAgent(PacmanQAgent):
 
         # Fear
         fear = 0
-        fear_factor = 10
+        fear_factor = 9
         gamma = .5
         ghostDistances = []
 
@@ -985,6 +987,9 @@ class GoodAggroAgent(PacmanQAgent):
         ghostDistances = sorted(ghostDistances)
         # Only worry about ghosts if they're nearby
         ghostDistances = [ghostDist for ghostDist in ghostDistances if ghostDist < 5]
+
+        if 0 in ghostDistances:
+            return -99999
 
         for i in range(len(ghostDistances)):
             # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
@@ -1011,7 +1016,7 @@ class GoodAggroAgent(PacmanQAgent):
         hunger_factor = 50
         # Hunger factor
         hunger = 0
-        foodGamma = 0.8
+        foodGamma = 0.4
         for i in range(len(foodDistances)):
             # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
             # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
@@ -1059,14 +1064,14 @@ class GoodAggroAgent(PacmanQAgent):
                 return 99999
 
         humility_factor = 1
-        humility = -10
-        distanceToBorder = abs(pos[0] - self.border)
+        humility = -100
+        distanceToCenter = abs(pos[0] - self.border)
 
         if gameState.getAgentState(self.index).numCarrying > 0:
             humility = (gameState.getAgentState(self.index).numCarrying / distanceToBorder) * humility_factor
 
         # Capsule lighter for Offensive
-        score = hunger - fear + random.uniform(0, .5) - (n + 8) ** 2 + gameState.getScore() + humility
+        score = hunger - fear + random.uniform(0, .5) - (n + 11) ** 2 + gameState.getScore() + humility
         print(score)
         return score
 
