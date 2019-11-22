@@ -1223,7 +1223,7 @@ class GoodDefensiveAgent(PacmanQAgent):
         #         foodDistances.append(md)
         # foodDistances = sorted(foodDistances)
 
-        hunger_factor = 18
+        hunger_factor = 5
         # Hunger factor
         hunger = 0
         foodGamma = -0.4
@@ -1271,24 +1271,15 @@ class GoodDefensiveAgent(PacmanQAgent):
         protecc_gamma = .5
         pacmanDistances = []
 
-        # Calculate distances to nearest ghost
-        for i, ghost in enumerate(ghosts):
-            if gameState.getAgentState(ghost).scaredTimer == 0:
-                md = manhattanDistance(ghostPositions[i], pos)
-                ghostDistances.append(md)
+        # Calculate distances to pacmen
+        for oppPacmanPos in oppPacmenPositions:
+          md = manhattanDistance(oppPacmanPos, pos)
+          pacmanDistances.append(md)
 
-        # Sort ghosts based on distance
-        ghostDistances = sorted(ghostDistances)
-        # Only worry about ghosts if they're nearby
-        ghostDistances = [ghostDist for ghostDist in ghostDistances if ghostDist < 5]
+        for i in range(len(pacmanDistances)):
+            protecc += (protecc_factor / pacmanDistances[i]) * (protecc_gamma ** i)
 
-        for i in range(len(ghostDistances)):
-            # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
-            # by a gamma^i where 0<gamma<1 and by a fear_factor
-            fear += (fear_factor / ghostDistances[i]) * (gamma ** i)
-
-        # Capsule lighter for Defensive
-        score = hunger - fear + random.uniform(0, .5) - (n + 7) ** 2 + gameState.getScore() - (len(capsules) + 30) ** 2
+        score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore() - (len(capsules) + 30) ** 2
         return score
 
 
