@@ -1072,7 +1072,7 @@ class GoodAggroAgent(PacmanQAgent):
 
         graduation = self.getMazeDistance(pos, gameState.getInitialAgentPosition(self.index))
         # Capsule lighter for Offensive
-        score = hunger - fear + random.uniform(0, 1) - (n + 9) ** 2 + gameState.getScore() + humility + graduation
+        score = hunger - fear + random.uniform(0, 1) - (n + 11) ** 2 + gameState.getScore() + humility + graduation
         print(score)
         return score
 
@@ -1313,10 +1313,11 @@ class GoodDefensiveAgent(PacmanQAgent):
             if oppIsOnside == True:
                 return -99999
 
-        distanceToHome = abs(pos[0] - self.selfHome)
-        homecoming = (4 / (distanceToHome + 1))
+        # distanceToHome = abs(pos[0] - self.selfHome)
+        # homecoming = (4 / (distanceToHome + 1))
+        graduation = self.getMazeDistance(pos, gameState.getInitialAgentPosition(self.index))
 
-        score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore() + homecoming
+        score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore() + graduation
         return score
 
 
