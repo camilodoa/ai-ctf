@@ -942,16 +942,15 @@ class GoodAggroAgent(PacmanQAgent):
         opponnentPositions = self.getLikelyOppPosition()
         capsules = []
         pos = gameState.getAgentPosition(self.index)
-        capsulegrid = gameState.getBlueCapsules() if self.isOnRedTeam else gameState.getRedCapsules()
-        for i in range(len(capsulegrid)):
-            for j in range(len(capsulegrid[i])):
-                if capsulegrid[i][j]:
-                    capsules.append((i, j))
+        # capsulegrid = gameState.getBlueCapsules() if self.isOnRedTeam else gameState.getRedCapsules()
+        # for i in range(len(capsulegrid)):
+        #     for j in range(len(capsulegrid[i])):
+        #         if capsulegrid[i][j]:
+        #             capsules.append((i, j))
         ghosts = []
         oppPacmen = []
         ghostPositions = []
         oppPacmenPositions = []
-
 
         if self.isOnRedTeam:
           for i, opp in enumerate(opponnentPositions):
@@ -973,7 +972,7 @@ class GoodAggroAgent(PacmanQAgent):
 
         # Fear
         fear = 0
-        fear_factor = 9
+        fear_factor = 5
         gamma = .5
         ghostDistances = []
 
@@ -994,7 +993,7 @@ class GoodAggroAgent(PacmanQAgent):
         for i in range(len(ghostDistances)):
             # Fear is sum of the recipricals of the distances to the nearest ghosts multiplied
             # by a gamma^i where 0<gamma<1 and by a fear_factor
-            fear += (fear_factor / ghostDistances[i]) * (gamma ** i)
+            fear += (fear_factor / (ghostDistances[i] + 1)) * (gamma ** i)
 
         # Record food coordinates
         foods = []
@@ -1013,14 +1012,14 @@ class GoodAggroAgent(PacmanQAgent):
                 foodDistances.append(md)
         foodDistances = sorted(foodDistances)
 
-        hunger_factor = 50
+        hunger_factor = 100
         # Hunger factor
         hunger = 0
-        foodGamma = 0.4
+        foodGamma = 0.8
         for i in range(len(foodDistances)):
             # Hunger is the sum of the reciprical of the distances to the nearest foods multiplied
             # by a foodGamma^i where 0<foodGamma<1 and by a hunger_factor
-            hunger += (hunger_factor / foodDistances[i]) * (foodGamma ** i)
+            hunger += (hunger_factor / (foodDistances[i]+ 1)) * (foodGamma ** i)
 
         # Beserk mode
           # Lighter for Defensive
@@ -1030,16 +1029,16 @@ class GoodAggroAgent(PacmanQAgent):
                 md = manhattanDistance(ghostPositions[i], pos)
                 scaredGhosts.append(md)
 
-        # Senzu bean
-          # Lighter for Defensive
-        capsuleDistances = []
-        for capsule in capsules:
-            md = manhattanDistance(capsule, pos)
-            capsuleDistances.append(md)
-
-        capsuleDistances = sorted(capsuleDistances)
-        for i in range(len(capsuleDistances)):
-            hunger += (hunger_factor * 4 / capsuleDistances[i]) * (foodGamma ** i)
+        # # Senzu bean
+        #   # Lighter for Defensive
+        # capsuleDistances = []
+        # for capsule in capsules:
+        #     md = manhattanDistance(capsule, pos)
+        #     capsuleDistances.append(md)
+        #
+        # capsuleDistances = sorted(capsuleDistances)
+        # for i in range(len(capsuleDistances)):
+        #     hunger += (hunger_factor * 4 / capsuleDistances[i]) * (foodGamma ** i)
 
         scaredGhosts = sorted(scaredGhosts)
         scaredGhosts = [ghost for ghost in scaredGhosts if ghost < 5]
@@ -1064,15 +1063,16 @@ class GoodAggroAgent(PacmanQAgent):
                 return 99999
 
         humility_factor = 1
-        humility = -100
+        humility = -10
         distanceToHome = abs(pos[0] - self.selfHome)
         distanceToOpp = abs(pos[0] - self.oppHome)
 
         if gameState.getAgentState(self.index).numCarrying > 0:
             humility = (gameState.getAgentState(self.index).numCarrying / distanceToHome) * humility_factor
 
+        graduation = self.getMazeDistance(pos, gameState.getInitialAgentPosition(self.index))
         # Capsule lighter for Offensive
-        score = hunger - fear + random.uniform(0, .5) - (n + 11) ** 2 + gameState.getScore() + humility
+        score = hunger - fear + random.uniform(0, 1) - (n + 9) ** 2 + gameState.getScore() + humility + graduation
         print(score)
         return score
 
@@ -1293,7 +1293,7 @@ class GoodDefensiveAgent(PacmanQAgent):
           pacmanDistances.append(md)
 
         for i in range(len(pacmanDistances)):
-            protecc += (protecc_factor / abs(pacmanDistances[i])) * (protecc_gamma ** i)
+            protecc += (protecc_factor / abs(pacmanDistances[i] + 1)) * (protecc_gamma ** i)
 
         # Enemy onside calculation
         for pos in oppPacmenPositions:
