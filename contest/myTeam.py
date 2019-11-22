@@ -935,11 +935,12 @@ class GoodAggroAgent(PacmanQAgent):
     def evaluationFunction(self, gameState):
         # Our plan:
         # Winning > Not getting killed > eating food > moving closer to food > fearing ghosts (see: God)
-        foodState = self.getFood(gameState)
+        foodStates = self.getFood(gameState)
         opponents = self.getOpponents(gameState)
         opponnentPositions = self.getLikelyOppPosition()
         capsules = []
-        capsulegrid = state.getBlueCapsules() if self.isOnRedTeam else state.getRedCapsules()
+        pos = gameState.getAgentPosition(self.index)
+        capsulegrid = gameState.getBlueCapsules() if self.isOnRedTeam else gameState.getRedCapsules()
         for i in range(len(capsulegrid)):
             for j in range(len(capsulegrid[i])):
                 if capsulegrid[i][j]:
@@ -977,7 +978,7 @@ class GoodAggroAgent(PacmanQAgent):
         # Calculate distances to nearest ghost
         for i, ghost in enumerate(ghosts):
             if gameState.getAgentState(ghost).scaredTimer == 0:
-                md = manhattanDistance(ghostPositions[i], pos)
+                md = self.getMazeDistance(ghostPositions[i], pos)
                 ghostDistances.append(md)
 
         # Sort ghosts based on distance
@@ -992,16 +993,18 @@ class GoodAggroAgent(PacmanQAgent):
 
         # Record food coordinates
         foods = []
-        for i in range(len(foodStates)):
-            for j in range(len(foodStates[i])):
+        for i, row in enumerate(foodStates):
+            for j, food in enumerate(row):
                 if foodStates[i][j]:
                     foods.append((i, j))
+
+        n = len(foods)
 
         # Calculate distances to nearest foods
         foodDistances = []
         if foods:
             for food in foods:
-                md = manhattanDistance(food, pos)
+                md = self.getMazeDistance(food, pos)
                 foodDistances.append(md)
         foodDistances = sorted(foodDistances)
 
@@ -1039,7 +1042,6 @@ class GoodAggroAgent(PacmanQAgent):
             hunger += (hunger_factor * 2 / scaredGhosts[i]) * (foodGamma ** i)
 
         # Onside calculation
-        pos = gameState.getAgentPosition(self.index)
         if self.isOnRedTeam:
             if pos[0] > self.border:
                 isOnside = False
@@ -1064,7 +1066,8 @@ class GoodAggroAgent(PacmanQAgent):
             humility = (gameState.getAgentState(self.index).numCarrying / distanceToBorder) * humility_factor
 
         # Capsule lighter for Offensive
-        score = hunger - fear + random.uniform(0, .5) - (n + 7) ** 2 + gameState.getScore() - (len(capsules) + 30) ** 2 + humility
+        score = hunger - fear + random.uniform(0, .5) - (n + 7) ** 2 + gameState.getScore()+ humility
+        print(score)
         return score
 
 
@@ -1135,11 +1138,11 @@ class GoodDefensiveAgent(PacmanQAgent):
         return score + random.uniform(0, .5)
 
     def evaluationFunction(self, gameState):
-        foodState = self.getFoodYouAreDefending(gameState)
+        foodStates = self.getFoodYouAreDefending(gameState)
         opponents = self.getOpponents(gameState)
         opponnentPositions = self.getLikelyOppPosition()
         capsules = []
-        capsulegrid = state.getBlueCapsules() if self.isOnRedTeam else state.getRedCapsules()
+        capsulegrid = gameState.getBlueCapsules() if self.isOnRedTeam else gameState.getRedCapsules()
         for i in range(len(capsulegrid)):
             for j in range(len(capsulegrid[i])):
                 if capsulegrid[i][j]:
@@ -1168,9 +1171,9 @@ class GoodDefensiveAgent(PacmanQAgent):
 
         # Record food coordinates
         foods = []
-        for i in range(len(foodStates)):
-            for j in range(len(foodStates[i])):
-                if foodStates[i][j]:
+        for i, row in enumerate(foodStates):
+            for j, food in enumerate(row):
+                if food:
                     foods.append((i, j))
 
         # Our plan:
@@ -1202,7 +1205,7 @@ class GoodDefensiveAgent(PacmanQAgent):
         # Calculate distances to nearest ghost
         for i, ghost in enumerate(ghosts):
             if gameState.getAgentState(ghost).scaredTimer == 0:
-                md = manhattanDistance(ghostPositions[i], pos)
+                md = self.getMazeDistance(ghostPositions[i], pos)
                 ghostDistances.append(md)
 
         # Sort ghosts based on distance
@@ -1244,7 +1247,7 @@ class GoodDefensiveAgent(PacmanQAgent):
         scaredGhosts = []
         for i, ghost in enumerate(ghosts):
             if gameState.getAgentState(ghost).scaredTimer > 0:
-                md = manhattanDistance(ghostPositions[i], pos)
+                md = self.getMazeDistance(ghostPositions[i], pos)
                 scaredGhosts.append(md)
 
 
@@ -1280,7 +1283,7 @@ class GoodDefensiveAgent(PacmanQAgent):
 
         # Calculate distances to pacmen
         for oppPacmanPos in oppPacmenPositions:
-          md = manhattanDistance(oppPacmanPos, pos)
+          md = self.getMazeDistance(oppPacmanPos, pos)
           pacmanDistances.append(md)
 
         for i in range(len(pacmanDistances)):
@@ -1289,7 +1292,7 @@ class GoodDefensiveAgent(PacmanQAgent):
         # Enemy onside calculation
         for pos in oppPacmenPositions:
           if self.isOnRedTeam:
-              if pos[0] <= self.border
+              if pos[0] <= self.border:
                   oppIsOnside = False
               else:
                   oppIsOnside = True
@@ -1304,7 +1307,7 @@ class GoodDefensiveAgent(PacmanQAgent):
             if oppIsOnside == True:
                 return -99999
 
-        score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore() - (len(capsules) + 30) ** 2
+        score = hunger - fear + protecc + random.uniform(0, .5) + gameState.getScore()
         return score
 
 
