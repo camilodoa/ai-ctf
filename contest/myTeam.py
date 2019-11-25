@@ -22,6 +22,9 @@ from game import Directions, Actions
 import itertools
 import time
 import pickle
+from keras.models import Sequential
+from keras.layers import Dense, Activation, InputLayer
+import numpy as np
 
 #################
 # Team creation #
@@ -52,63 +55,7 @@ def createTeam(firstIndex, secondIndex, isRed,
 # Agents #
 ##########
 
-class DummyAgent(CaptureAgent):
-    """
-  A Dummy agent to serve as an example of the necessary agent structure.
-  You should look at baselineTeam.py for more details about how to
-  create an agent as this is the bare minimum.
-  """
-
-    def registerInitialState(self, gameState):
-        """
-        This method handles the initial setup of the
-        agent to populate useful fields (such as what team
-        we're on).
-
-        A distanceCalculator instance caches the maze distances
-        between each pair of positions, so your agents can use:
-        self.distancer.getDistance(p1, p2)
-
-        IMPORTANT: This method may run for at most 15 seconds.
-        """
-
-        '''
-        Make sure you do not delete the following line. If you would like to
-        use Manhattan distances instead of maze distances in order to save
-        on initialization time, please take a look at
-        CaptureAgent.registerInitialState in captureAgents.py.
-        '''
-        CaptureAgent.registerInitialState(self, gameState)
-
-        '''
-        Your initialization code goes here, if you need any.
-        '''
-
-    def chooseAction(self, gameState):
-        """
-        Picks among actions randomly.
-        """
-        actions = gameState.getLegalActions(self.index)
-
-        '''
-        You should change this in your own agent.
-        '''
-
-        return random.choice(actions)
-
-# baselineTeam.py
-# ---------------
-# Licensing Information:  You are free to use or extend these projects for
-# educational purposes provided that (1) you do not distribute or publish
-# solutions, (2) you retain this notice, and (3) you provide clear
-# attribution to UC Berkeley, including a link to http://ai.berkeley.edu.
-#
-# Attribution Information: The Pacman AI projects were developed at UC Berkeley.
-# The core projects and autograders were primarily created by John DeNero
-# (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
-# Student side autograding was added by Brad Miller, Nick Hay, and
-# Pieter Abbeel (pabbeel@cs.berkeley.edu).
-
+# Our particles
 static_particles = None
 
 class BigBrainAgent(CaptureAgent):
@@ -388,9 +335,8 @@ class PacmanQAgent(BigBrainAgent):
 
       self.selfHome = self.border + (self.start[0] - self.border)
       self.oppHome = self.border + (gameState.getInitialAgentPosition(opp[0])[0] - self.border)
-      self.qValues = util.Counter()
-      self.epsilon=0.1
-      self.gamma = self.discount =0.8
+      self.epsilon = 0.1
+      self.gamma = self.discount = 0.8
       self.alpha=0.3
       self.reward = -0.1
       self.isOnRedTeam = gameState.isOnRedTeam(self.index)
@@ -398,6 +344,93 @@ class PacmanQAgent(BigBrainAgent):
       self.save = True
       self.numOurFood = self.getFoodYouAreDefending(gameState).count(True)
       self.numFood = self.getFood(gameState).count(True)
+
+      self.model = Sequential()
+      model.add(InputLayer(batch_input_shape=(1, 5)))
+      model.add(Dense(10, activation='sigmoid'))
+      model.add(Dense(2, activation='linear'))
+      model.compile(loss='mse', optimizer='adam', metrics=['mae'])
+
+  def stateToArr(self, state):
+      '''
+      Converts capture.py state into a list of numpy arrays
+      '''
+      state_arr = []
+
+      opponents = self.getLikelyOppPosition()
+      ghosts = []
+      oppPacmen = []
+      # Fill out opponent arrays
+      if self.isOnRedTeam:
+          for opp in opponents:
+              if opp[0] < self.border:
+                  oppPacmen.append(opp)
+              else:
+                  ghosts.append(opp)
+      else:
+          for opp in opponents:
+              if opp[0] >= self.border:
+                  oppPacmen.append(opp)
+              else:
+                  ghosts.append(opp)
+
+      # Food
+      food = self.convertToNumpy(state.getBlueFood() if self.isOnRedTeam else state.getRedFood())
+      state_arr.append(food)
+
+      ourFood = self.convertToNumpy(state.getRedFood() if self.isOnRedTeam else state.getBlueFood())
+      state_arr.append(ourFood)
+
+      # Opponent ghost positions
+      matrix = state.getBlueFood()
+      ghosts = self.convertPositionsToMatrix(ghosts, matrix)
+      state_arr.append(ghosts)
+
+      # Opponent pacmen positions
+      oppPacmen = self.convertPositionsToMatrix(oppPacmen, matrix)
+      state_arr.append(ghosts)
+
+      # Partner Position
+      partner = self.getTeam(self, state)
+      partner = [x for x in partner if x not self.index][0]
+      partner = state.getAgentPosition(partner)
+      partner = self.convertPositionToMatrix(partner, matrix)
+      state_arr.append(partner)
+
+      # Our position
+      pos = state.getAgentPosition(self.index)
+      pos = self.convertPositionToMatrix(pos, matrix)
+      state_arr.append(pos)
+
+      return state_arr
+
+
+  def convertToNumpy(self, matrix):
+      for i, row in enumerate(matrix):
+          for j, value in enumerate(row):
+              if value == True:
+                  matrix[i][j] = 1
+              else:
+                  matrix[i][j] = 0
+      return numpy.array([numpy.array(valuei) for valuei in matrix])
+
+  def convertPositionToMatrix(self, position, matrix):
+      for i, row in enumerate(matrix):
+          for j, val in enumerate(row):
+              if (i, j) == position:
+                  matrix[i][j] = 1
+              else:
+                  matrix[i][j] = 0
+       return numpy.array([numpy.array(valuei) for valuei in matrix])
+
+  def convertPositionsToMatrix(self, positions, matrix):
+      for i, row in enumerate(matrix):
+          for j, val in enumerate(row):
+              if (i, j) in positions:
+                  matrix[i][j] = 1
+              else:
+                  matrix[i][j] = 0
+       return numpy.array([numpy.array(valuei) for valuei in matrix])
 
 
   def chooseAction(self, state):
@@ -596,64 +629,6 @@ class GoodAggroAgent(PacmanQAgent):
         self.depth = 4
         self.useMinimax = False
 
-        self.weightfile = "./GoodWeights1.pkl"
-        self.weights = util.Counter()
-        file = open(self.weightfile, 'r')
-        self.weights = pickle.load(file)
-
-    def getFeatures(self, state, action):
-        # Agressive features
-        features = util.Counter()
-        pos = state.getAgentPosition(self.index)
-        successor = state.generateSuccessor(self.index, action)
-        # Meta data
-        food = self.getFood(state)
-        walls = state.getWalls()
-        opponents = self.getLikelyOppPosition()
-        ghosts = []
-        oppPacmen = []
-        # Fill out opponent arrays
-        if self.isOnRedTeam:
-            for opp in opponents:
-                if opp[0] < self.border:
-                    oppPacmen.append(opp)
-                else:
-                    ghosts.append(opp)
-        else:
-            for opp in opponents:
-                if opp[0] >= self.border:
-                    oppPacmen.append(opp)
-                else:
-                    ghosts.append(opp)
-
-
-        features['onOffence'] = 1
-        if not successor.getAgentState(self.index).isPacman: features['onOffence'] = 0
-
-        features['successorNumFood'] = -self.getFood(successor).count(True)
-
-        # compute the location of pacman after he takes the action
-        x, y = state.getAgentPosition(self.index)
-        dx, dy = Actions.directionToVector(action)
-        next_x, next_y = int(x + dx), int(y + dy)
-
-        # count the number of ghosts 1-step away
-        features["#-of-ghosts-1-step-away"] = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
-
-        # if there is no danger of ghosts then add the food feature
-        if not features["#-of-ghosts-1-step-away"] and food[next_x][next_y]:
-            features["eats-food"] = 1.0
-
-        dist = self.closestFood((next_x, next_y), food, walls)
-        if dist is not None:
-            # make the distance a number less than one otherwise the update
-            # will diverge wildly
-            features["closest-food"] = float(dist) / (walls.width * walls.height)
-
-        features.divideAll(10.0)
-        return features
-
-
 
 class GoodDefensiveAgent(PacmanQAgent):
     def registerInitialState(self, gameState):
@@ -665,49 +640,3 @@ class GoodDefensiveAgent(PacmanQAgent):
         self.reward = -1
         self.depth = 3
         self.useMinimax = False
-
-        self.weightfile = "./GoodWeights2.pkl"
-        self.weights = util.Counter()
-        file = open(self.weightfile, 'r')
-        self.weights = pickle.load(file)
-
-    def getFeatures(self, state, action):
-        # Defensive features
-        features = util.Counter()
-        pos = state.getAgentPosition(self.index)
-        successor = state.generateSuccessor(self.index, action)
-        # Meta data
-        food = self.getFoodYouAreDefending(state)
-        walls = state.getWalls()
-        opponents = self.getLikelyOppPosition()
-        ghosts = []
-        oppPacmen = []
-        # Fill out opponent arrays
-        if self.isOnRedTeam:
-            for opp in opponents:
-                if opp[0] < self.border:
-                    oppPacmen.append(opp)
-                else:
-                    ghosts.append(opp)
-        else:
-            for opp in opponents:
-                if opp[0] >= self.border:
-                    oppPacmen.append(opp)
-                else:
-                    ghosts.append(opp)
-
-
-        features['numPac'] = len(oppPacmen)
-        if len(oppPacmen) > 0:
-          dists = [self.getMazeDistance(pos, a) for a in oppPacmen]
-          features['closestPac'] = float(min(dists)) / (walls.width * walls.height)
-
-        if action == Directions.STOP: features['stop'] = 1
-        rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
-        if action == rev: features['reverse'] = 1
-
-        features['onDefense'] = 1
-        if successor.getAgentState(self.index).isPacman: features['onDefense'] = 0
-
-        features.divideAll(10.0)
-        return features
