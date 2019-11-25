@@ -451,10 +451,10 @@ class PacmanQAgent(BigBrainAgent):
           legalActions = state.getLegalActions(self.index)
           action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
           reward = self.getReward(state.generateSuccessor(self.index, action), state)
-          print("reward for ", self.index, " is ", reward)
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
       if self.save:
+          print("agent ", self.index, "'s weights are ", self.weights)
           file = open(self.weightfile,'wb')
           pickle.dump(self.weights, file)
           file.close()
@@ -576,11 +576,13 @@ class PacmanQAgent(BigBrainAgent):
       if food <= 2:
           if isOnside == True:
               score += 99999
+              print("WIN!!")
 
       # isLose
       if ourFood <= 2:
           if len(oppPacmen) == 0:
               score -= 99999
+              print("lose :-(")
 
       return score
 
@@ -589,7 +591,7 @@ class GoodAggroAgent(PacmanQAgent):
     def registerInitialState(self, gameState):
         BigBrainAgent.registerInitialState(self, gameState)
         PacmanQAgent.registerInitialState(self, gameState)
-        self.epsilon = 0.1
+        self.epsilon = 0.3
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
@@ -598,8 +600,8 @@ class GoodAggroAgent(PacmanQAgent):
 
         self.weightfile = "./GoodWeights1.pkl"
         self.weights = util.Counter()
-        file = open(self.weightfile, 'r')
-        self.weights = pickle.load(file)
+        # file = open(self.weightfile, 'r')
+        # self.weights = pickle.load(file)
 
     def getFeatures(self, state, action):
         # Agressive features
@@ -626,11 +628,10 @@ class GoodAggroAgent(PacmanQAgent):
                 else:
                     ghosts.append(opp)
 
-
         features['onOffence'] = 1
         if not successor.getAgentState(self.index).isPacman: features['onOffence'] = 0
 
-        features['successorNumFood'] = -self.getFood(successor).count(True)
+        features['successorNumFood'] = self.getFood(successor).count(True)
 
         # compute the location of pacman after he takes the action
         x, y = state.getAgentPosition(self.index)
@@ -653,13 +654,45 @@ class GoodAggroAgent(PacmanQAgent):
         features.divideAll(10.0)
         return features
 
+    def getReward(self, state, lastState):
+        # Aggro reward only depends on food left
+        pos = state.getAgentPosition(self.index)
+        food = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood().count(True)
+        food_score = self.numFood - food # Total minus current
+
+        # State score
+        score = self.reward + state.getScore() - lastState.getScore()
+
+        # Food score
+        score += food_score
+
+        # Onside calculation
+        if self.isOnRedTeam:
+            if pos[0] > self.border:
+                isOnside = False
+            else:
+                isOnside = True
+        else:
+            if pos[0] <= self.border:
+                isOnside = False
+            else:
+                isOnside = True
+
+        # isWin
+        if food <= 2:
+            if isOnside == True:
+                score += 99999
+                print("WIN!!")
+
+        return score
+
 
 
 class GoodDefensiveAgent(PacmanQAgent):
     def registerInitialState(self, gameState):
         BigBrainAgent.registerInitialState(self, gameState)
         PacmanQAgent.registerInitialState(self, gameState)
-        self.epsilon = 0.1
+        self.epsilon = 0.3
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
@@ -668,8 +701,8 @@ class GoodDefensiveAgent(PacmanQAgent):
 
         self.weightfile = "./GoodWeights2.pkl"
         self.weights = util.Counter()
-        file = open(self.weightfile, 'r')
-        self.weights = pickle.load(file)
+        # file = open(self.weightfile, 'r')
+        # self.weights = pickle.load(file)
 
     def getFeatures(self, state, action):
         # Defensive features
@@ -702,12 +735,59 @@ class GoodDefensiveAgent(PacmanQAgent):
           dists = [self.getMazeDistance(pos, a) for a in oppPacmen]
           features['closestPac'] = float(min(dists)) / (walls.width * walls.height)
 
+        features['onDefense'] = 1.0
+        if successor.getAgentState(self.index).isPacman: features['onDefense'] = 0
+
+        x, y = state.getAgentPosition(self.index)
+        dx, dy = Actions.directionToVector(action)
+        next_x, next_y = int(x + dx), int(y + dy)
+
+        if (next_x, next_y) in oppPacmen:
+            features["eats-pacman"] = 1.0
+
+        # Distance to start
+        features["distance-to-start"] = float(self.getMazeDistance(pos, self.start)) / (walls.width * walls.height)
+
         if action == Directions.STOP: features['stop'] = 1
         rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
         if action == rev: features['reverse'] = 1
 
-        features['onDefense'] = 1
-        if successor.getAgentState(self.index).isPacman: features['onDefense'] = 0
-
         features.divideAll(10.0)
         return features
+
+    def getReward(self, state, lastState):
+        # Defensive reward only depends on our food
+        ourFood = state.getRedFood().count(True) if self.isOnRedTeam else state.getBlueFood().count(True)
+
+        ourFood_score = ourFood - self.numOurFood # Total minus current
+
+        opponents = self.getLikelyOppPosition()
+        ghosts = []
+        oppPacmen = []
+        # Fill out opponent arrays
+        if self.isOnRedTeam:
+            for opp in opponents:
+                if opp[0] < self.border:
+                    oppPacmen.append(opp)
+                else:
+                    ghosts.append(opp)
+        else:
+            for opp in opponents:
+                if opp[0] >= self.border:
+                    oppPacmen.append(opp)
+                else:
+                    ghosts.append(opp)
+
+        # State score
+        score = self.reward + state.getScore() - lastState.getScore()
+
+        # Food score
+        score += ourFood_score
+
+        # isLose
+        if ourFood <= 2:
+            if len(oppPacmen) == 0:
+                score -= 99999
+                print("lose :-(")
+
+        return score
