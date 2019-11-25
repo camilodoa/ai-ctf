@@ -358,21 +358,6 @@ class PacmanQAgent(BigBrainAgent):
       state_arr = []
 
       opponents = self.getLikelyOppPosition()
-      ghosts = []
-      oppPacmen = []
-      # Fill out opponent arrays
-      if self.isOnRedTeam:
-          for opp in opponents:
-              if opp[0] < self.border:
-                  oppPacmen.append(opp)
-              else:
-                  ghosts.append(opp)
-      else:
-          for opp in opponents:
-              if opp[0] >= self.border:
-                  oppPacmen.append(opp)
-              else:
-                  ghosts.append(opp)
 
       # Food
       food = self.convertToNumpy(state.getBlueFood() if self.isOnRedTeam else state.getRedFood())
@@ -381,14 +366,10 @@ class PacmanQAgent(BigBrainAgent):
       ourFood = self.convertToNumpy(state.getRedFood() if self.isOnRedTeam else state.getBlueFood())
       state_arr.append(ourFood)
 
-      # Opponent ghost positions
+      # Opponent positions
       matrix = state.getBlueFood()
-      ghosts = self.convertPositionsToMatrix(ghosts, matrix)
-      state_arr.append(ghosts)
-
-      # Opponent pacmen positions
-      oppPacmen = self.convertPositionsToMatrix(oppPacmen, matrix)
-      state_arr.append(ghosts)
+      opponents = self.convertPositionsToMatrix(opponents, matrix)
+      state_arr.append(opponents)
 
       # Partner Position
       partner = self.getTeam(self, state)
