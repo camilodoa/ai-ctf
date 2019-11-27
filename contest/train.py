@@ -24,7 +24,6 @@ def validate():
             blue = random.choice(teams)
         subprocess.call(['python2', 'capture.py', '-r', red, '-b', blue, '-l', 'RANDOM'])
     except KeyboardInterrupt:
-        break
         return
 
 
