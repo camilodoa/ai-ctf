@@ -1022,9 +1022,8 @@ if __name__ == '__main__':
   """
 
   options = readCommand( sys.argv[1:] ) # Get game components based on input
-  while(True):
-      games = runGames(**options)
+  games = runGames(**options)
 
-      save_score(games[0])
+  save_score(games[0])
   # import cProfile
   # cProfile.run('runGames( **options )', 'profile')
