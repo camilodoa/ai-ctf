@@ -82,6 +82,7 @@ class BigBrainAgent(CaptureAgent):
         self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
         self.numParticles = 600
         self.depth = 10
+        self.sawEnemy = False
         self.initializeParticles(gameState)
 
     def chooseAction(self, gameState):
@@ -243,7 +244,11 @@ class BigBrainAgent(CaptureAgent):
             weight = 1
             for i, opponent in enumerate(oppList):
                 distance = util.manhattanDistance(pacmanPosition, particle[i])
-                prob = gameState.getDistanceProb(distance, noisyDistances[i])
+                # If we thought a ghost was near us but evidence is against it, prob is 0
+                if gameState.getAgentPosition(opponent) is None and distance <= 5:
+                    prob = 0
+                else:
+                    prob = gameState.getDistanceProb(distance, noisyDistances[i])
                 weight *= prob
             weights[particle] += weight
 
@@ -583,7 +588,7 @@ class GoodAggroAgent(PacmanQAgent):
     def getFeatures(self, state, action):
         # Agressive features
         features = util.Counter()
-        pos = state.getAgentPosition(self.index)
+        x, y = pos = state.getAgentPosition(self.index)
         successor = state.generateSuccessor(self.index, action)
         agentState = state.getAgentState(self.index)
         # Meta data
@@ -607,7 +612,6 @@ class GoodAggroAgent(PacmanQAgent):
                     ghosts.append(opp)
 
         # compute the location of pacman after he takes the action
-        x, y = state.getAgentPosition(self.index)
         dx, dy = Actions.directionToVector(action)
         next_x, next_y = int(x + dx), int(y + dy)
 
@@ -617,9 +621,11 @@ class GoodAggroAgent(PacmanQAgent):
         # Only one feature if a ghost killed us
         if (next_x, next_y) in ghosts:
             features["died"] = 1.0
+            features["distance-from-home"] = float(manhattanDistance(pos, self.start)) / (walls.width * walls.height)
         # Only one feature if we're about to die
         elif ghostsOneStepAway >= 1:
             features["ghosts-1-step-away"] = float(ghostsOneStepAway) / len(ghosts)
+            features["distance-from-home"] = float(manhattanDistance(pos, self.start)) / (walls.width * walls.height)
         # Otherwise, we have regular features
         else:
             features['successor-food-count'] = -self.getFood(successor).count(True)
@@ -703,6 +709,18 @@ class GoodDefensiveAgent(PacmanQAgent):
         agentState = state.getAgentState(self.index)
         walls = state.getWalls()
         # Meta data
+        # Onside calculation
+        if self.isOnRedTeam:
+            if pos[0] > self.border:
+                isOnside = False
+            else:
+                isOnside = True
+        else:
+            if pos[0] <= self.border:
+                isOnside = False
+            else:
+                isOnside = True
+
         food = self.getFoodYouAreDefending(state)
         walls = state.getWalls()
         opponents = self.getLikelyOppPosition()
@@ -724,8 +742,10 @@ class GoodDefensiveAgent(PacmanQAgent):
 
         dx, dy = Actions.directionToVector(action)
         next_x, next_y = int(x + dx), int(y + dy)
+        if not isOnside:
+            features['distance-to-start'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
 
-        if len(oppPacmen) > 0:
+        elif len(oppPacmen) > 0:
             dists = [self.pacDist((next_x, next_y), pac, walls) for pac in oppPacmen]
             if agentState.scaredTimer > 0:
                 features['is-scared'] = 1
@@ -736,8 +756,6 @@ class GoodDefensiveAgent(PacmanQAgent):
                 features['closest-opp'] = float(min(dists)) / (walls.width * walls.height)
                 if (next_x, next_y) in oppPacmen:
                     features["eats-pacman"] = 1.0
-        else:
-            features['distance-to-start'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
 
         if action == Directions.STOP: features['stop'] = 1.0
         rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
@@ -807,12 +825,13 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         self.weightfile = self.aggroWeightFile = "./GoodWeights1.pkl"
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
-        self.save = True
+        self.save = False
 
     def getFeatures(self, s, a):
         opponents = self.getLikelyOppPosition()
         defenders = []
         invaders = []
+        us = s.getAgentState(self.index)
         # Fill out opponent arrays
         if self.isOnRedTeam:
             for opp in opponents:
@@ -827,8 +846,9 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
                 else:
                     defenders.append(opp)
 
-        # If we're being invaded, be defensive
-        if len(invaders) >= 1:
+        defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2))
+        # If we're being invaded and we aren't scared, be defensive
+        if defensive:
             self.weightfile = self.defensiveWeightFile
             file = open(self.weightfile, 'r')
             self.weights = pickle.load(file)
