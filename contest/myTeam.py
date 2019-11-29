@@ -830,14 +830,14 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         # If we're being invaded, be defensive
         if len(invaders) >= 1:
             self.weightfile = self.defensiveWeightFile
-            file = open(self.defensiveWeightFile, 'r')
+            file = open(self.weightfile, 'r')
             self.weights = pickle.load(file)
             features = GoodDefensiveAgent.getFeatures(self, s, a)
             return features
         # Otherwise, be aggressive!
         else:
             self.weightfile = self.aggroWeightFile
-            file = open(self.defensiveWeightFile, 'r')
+            file = open(self.weightfile, 'r')
             self.weights = pickle.load(file)
             features = GoodAggroAgent.getFeatures(self, s, a)
             return features
