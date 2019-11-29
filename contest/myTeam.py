@@ -28,7 +28,7 @@ import pickle
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first='GoodAggroAgent', second='GoodDefensiveAgent'):
+               first='RationalAgent', second='RationalAgent'):
     """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -780,3 +780,73 @@ class GoodDefensiveAgent(PacmanQAgent):
             if len(oppPacmen) == 0:
                 score -= 999
         return score
+
+class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
+    '''
+    Idea behind this class:
+    Whenever our agents are at a starting position, or if we're missing half of
+    our food they get to pick to be a defensive agent or an offensive agent.
+    - if there is an invader on our side
+        - switch to defensive
+    - otherwise
+        - be aggressive!
+    '''
+    def registerInitialState(self, s):
+        BigBrainAgent.registerInitialState(self, s)
+        PacmanQAgent.registerInitialState(self, s)
+        self.epsilon = 0.0
+        self.gamma = self.discount = 0.8
+        self.alpha = 0.2
+        self.reward = -1
+        self.depth = 3
+        self.useMinimax = True
+
+        self.aggroWeightFile = "./GoodWeights1.pkl"
+        self.weightfile = self.defensiveWeightFile = "./GoodWeights2.pkl"
+        file = open(self.weightfile, 'r')
+        self.weights = pickle.load(file)
+        print("starting off as a defensive agent")
+        self.save = False
+
+    def getFeatures(self, s, a):
+        opponents = self.getLikelyOppPosition()
+        defenders = []
+        invaders = []
+        # Fill out opponent arrays
+        if self.isOnRedTeam:
+            for opp in opponents:
+                if opp[0] < self.border:
+                    invaders.append(opp)
+                else:
+                    defenders.append(opp)
+        else:
+            for opp in opponents:
+                if opp[0] >= self.border:
+                    invaders.append(opp)
+                else:
+                    defenders.append(opp)
+
+        switch = (s.getAgentPosition(self.index) == self.start) or (self.getFood(s).count(True) <= self.numFood//2)
+        # If we're at the start, we can swap weights
+        if switch:
+            if len(invaders) >= 1:
+                print("defense!")
+                self.weightfile = self.defensiveWeightFile
+                file = open(self.defensiveWeightFile, 'r')
+                self.weights = pickle.load(file)
+                features = GoodDefensiveAgent.getFeatures(self, s, a)
+                return features
+            else:
+                print("offense!")
+                self.weightfile = self.aggroWeightFile
+                file = open(self.aggroWeightFile, 'r')
+                self.weights = pickle.load(file)
+                features = GoodAggroAgent.getFeatures(self, s, a)
+                return features
+        # If we're not swapping we're defensive or offsensive
+        elif self.weightfile == self.defensiveWeightFile:
+            features = GoodDefensiveAgent.getFeatures(self, s, a)
+            return features
+        else:
+            features = GoodAggroAgent.getFeatures(self, s, a)
+            return features
