@@ -363,28 +363,27 @@ class PacmanQAgent(BigBrainAgent):
           if util.flipCoin(self.epsilon):
               action = random.choice(actions)
           else:
-              self.computeActionFromQValues(state)
-
               startTime = time.time()
               max_score = -99999
               max_action = None
               alpha = -99999
               beta = 99999
               for action in actions:
-                  # Update successor ghost positions to be the max pos in our particle distributions
-                  successor = state.generateSuccessor(self.index, action)
-                  ghosts = self.getBeliefDistribution().argMax()
-                  successor = self.setGhostPositions(successor, ghosts, self.getOpponents(state))
+                  if action != "Stop":
+                      # Update successor ghost positions to be the max pos in our particle distributions
+                      successor = state.generateSuccessor(self.index, action)
+                      ghosts = self.getBeliefDistribution().argMax()
+                      successor = self.setGhostPositions(successor, ghosts, self.getOpponents(state))
 
-                  result = self.minimax(successor, startTime, 1, alpha, beta, 1)
-                  if result >= max_score:
-                      max_score = result
-                      max_action = action
+                      result = self.minimax(successor, startTime, 1, alpha, beta, 1)
+                      if result >= max_score:
+                          max_score = result
+                          max_action = action
 
-                  if max_score > beta:
-                      return max_action
+                      if max_score > beta:
+                          return max_action
 
-                  alpha = max(alpha, max_score)
+                      alpha = max(alpha, max_score)
 
               action = max_action
 
@@ -572,7 +571,7 @@ class GoodAggroAgent(PacmanQAgent):
         self.alpha = 0.2
         self.reward = -1
         self.depth = 4
-        self.useMinimax = True
+        self.useMinimax = False
 
         self.weightfile = "./GoodWeights1.pkl"
         # self.weights = util.Counter()
@@ -581,7 +580,7 @@ class GoodAggroAgent(PacmanQAgent):
         # file.close()
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
-        self.save = False
+        self.save = True
 
 
     def getFeatures(self, state, action):
@@ -637,6 +636,10 @@ class GoodAggroAgent(PacmanQAgent):
                 # make the distance a number less than one otherwise the update
                 # will diverge wildly
                 features["closest-food"] = float(dist) / (walls.width * walls.height)
+
+            if len(ghosts) >= 1:
+                dists = [self.pacDist((next_x, next_y), pac, walls) for pac in ghosts]
+                features["closest-ghost"] = float(min(dists)) / (walls.width * walls.height)
 
             if action == Directions.STOP: features['stop'] = 1
 
