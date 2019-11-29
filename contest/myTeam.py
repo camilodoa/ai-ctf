@@ -326,7 +326,7 @@ class PacmanQAgent(BigBrainAgent):
       self.start = gameState.getAgentPosition(self.index)
       opp = self.getOpponents(gameState)
       walls = gameState.getWalls()
-      self.border =abs(self.start[0] - walls.width)/2
+      self.border = walls.width//2
 
       self.selfHome = self.border + (self.start[0] - self.border)
       self.oppHome = self.border + (gameState.getInitialAgentPosition(opp[0])[0] - self.border)
