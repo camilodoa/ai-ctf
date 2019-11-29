@@ -799,13 +799,15 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         self.alpha = 0.2
         self.reward = -1
         self.depth = 3
-        self.useMinimax = True
+        self.useMinimax = False
 
+        # Weightfiles used for switching behavior
+        # Agents start off as offensive
         self.defensiveWeightFile = "./GoodWeights2.pkl"
         self.weightfile = self.aggroWeightFile = "./GoodWeights1.pkl"
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
-        self.save = False
+        self.save = True
 
     def getFeatures(self, s, a):
         opponents = self.getLikelyOppPosition()
@@ -825,25 +827,17 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
                 else:
                     defenders.append(opp)
 
-        switch = (s.getAgentPosition(self.index) == self.start) or (self.getFood(s).count(True) <= self.numFood//2)
-        # If we're at the start, we can swap weights
-        if switch:
-            if len(invaders) >= 1:
-                self.weightfile = self.defensiveWeightFile
-                file = open(self.defensiveWeightFile, 'r')
-                self.weights = pickle.load(file)
-                features = GoodDefensiveAgent.getFeatures(self, s, a)
-                return features
-            else:
-                self.weightfile = self.aggroWeightFile
-                file = open(self.aggroWeightFile, 'r')
-                self.weights = pickle.load(file)
-                features = GoodAggroAgent.getFeatures(self, s, a)
-                return features
-        # If we're not swapping we're defensive or offsensive
-        elif self.weightfile == self.defensiveWeightFile:
+        # If we're being invaded, be defensive
+        if len(invaders) >= 1:
+            self.weightfile = self.defensiveWeightFile
+            file = open(self.defensiveWeightFile, 'r')
+            self.weights = pickle.load(file)
             features = GoodDefensiveAgent.getFeatures(self, s, a)
             return features
+        # Otherwise, be aggressive!
         else:
+            self.weightfile = self.aggroWeightFile
+            file = open(self.defensiveWeightFile, 'r')
+            self.weights = pickle.load(file)
             features = GoodAggroAgent.getFeatures(self, s, a)
             return features
