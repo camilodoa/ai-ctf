@@ -794,18 +794,17 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
     def registerInitialState(self, s):
         BigBrainAgent.registerInitialState(self, s)
         PacmanQAgent.registerInitialState(self, s)
-        self.epsilon = 0.0
+        self.epsilon = 0.05
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
         self.depth = 3
         self.useMinimax = True
 
-        self.aggroWeightFile = "./GoodWeights1.pkl"
-        self.weightfile = self.defensiveWeightFile = "./GoodWeights2.pkl"
+        self.defensiveWeightFile = "./GoodWeights2.pkl"
+        self.weightfile = self.aggroWeightFile = "./GoodWeights1.pkl"
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
-        print("starting off as a defensive agent")
         self.save = False
 
     def getFeatures(self, s, a):
@@ -830,14 +829,12 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         # If we're at the start, we can swap weights
         if switch:
             if len(invaders) >= 1:
-                print("defense!")
                 self.weightfile = self.defensiveWeightFile
                 file = open(self.defensiveWeightFile, 'r')
                 self.weights = pickle.load(file)
                 features = GoodDefensiveAgent.getFeatures(self, s, a)
                 return features
             else:
-                print("offense!")
                 self.weightfile = self.aggroWeightFile
                 file = open(self.aggroWeightFile, 'r')
                 self.weights = pickle.load(file)
