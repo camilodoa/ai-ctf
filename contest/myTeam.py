@@ -412,7 +412,6 @@ class PacmanQAgent(BigBrainAgent):
               self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
       if self.save:
-          # print("agent ", self.index, "'s weights are ", self.weights)
           file = open(self.weightfile,'wb')
           pickle.dump(self.weights, file)
           file.close()
@@ -551,13 +550,11 @@ class PacmanQAgent(BigBrainAgent):
       if food <= 2:
           if isOnside == True:
               score += 99999
-              print("WIN!!")
 
       # isLose
       if ourFood <= 2:
           if len(oppPacmen) == 0:
               score -= 99999
-              print("lose :-(")
 
       return score
 
@@ -571,7 +568,7 @@ class GoodAggroAgent(PacmanQAgent):
         self.alpha = 0.2
         self.reward = -1
         self.depth = 4
-        self.useMinimax = False
+        self.useMinimax = True
 
         self.weightfile = "./GoodWeights1.pkl"
         # self.weights = util.Counter()
@@ -580,7 +577,7 @@ class GoodAggroAgent(PacmanQAgent):
         # file.close()
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
-        self.save = True
+        self.save = False
 
 
     def getFeatures(self, state, action):
@@ -674,8 +671,6 @@ class GoodAggroAgent(PacmanQAgent):
         if food <= 2:
             if isOnside == True:
                 score += 999
-                print("WIN!!")
-        # print("aggro score for ", self.index, " is ", score)
         return score
 
 
@@ -784,6 +779,4 @@ class GoodDefensiveAgent(PacmanQAgent):
         if ourFood <= 2:
             if len(oppPacmen) == 0:
                 score -= 999
-                print("lose :-(")
-        # print("defensive score for ", self.index, " is ", score)
         return score

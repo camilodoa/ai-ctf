@@ -31,6 +31,6 @@ def validate():
 if __name__ == "__main__":
     train_epochs = int(sys.argv[1]) if len(sys.argv) == 2 else 1
     print("training for ", train_epochs)
-    # train(train_epochs)
+    train(train_epochs)
     print("validating")
     validate()
