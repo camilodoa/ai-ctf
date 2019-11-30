@@ -630,6 +630,9 @@ class GoodAggroAgent(PacmanQAgent):
         else:
             features['successor-food-count'] = -self.getFood(successor).count(True)
 
+            # count the number of opponents that are 4 steps or fewer away
+            features['opponents-4-steps-away'] = sum(1 for oppPos in opponents if manhattanDistance(pos, oppPos) <= 4)
+
             if food[next_x][next_y]:
                 features["eats-food"] = 1.0
 
