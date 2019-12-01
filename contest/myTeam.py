@@ -618,6 +618,9 @@ class GoodAggroAgent(PacmanQAgent):
         # count the number of ghosts 1-step away
         ghostsOneStepAway = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
 
+         # count the number of opponents that are 4 steps or fewer away
+        oppFourStepsAway = sum(1 for oppPos in opponents if manhattanDistance(pos, oppPos) <= 4)
+
         # Only one feature if a ghost killed us
         if (next_x, next_y) in ghosts:
             features["died"] = 1.0
@@ -626,12 +629,12 @@ class GoodAggroAgent(PacmanQAgent):
         elif ghostsOneStepAway >= 1:
             features["ghosts-1-step-away"] = float(ghostsOneStepAway) / len(ghosts)
             features["distance-from-home"] = float(manhattanDistance(pos, self.start)) / (walls.width * walls.height)
+        # Only one feature if there are opponents fewer than 4 steps away
+        elif oppFourStepsAway >= 1:
+            features['opponents-4-steps-away'] = float(oppFourStepsAway) / len(opponents)
         # Otherwise, we have regular features
         else:
             features['successor-food-count'] = -self.getFood(successor).count(True)
-
-            # count the number of opponents that are 4 steps or fewer away
-            features['opponents-4-steps-away'] = sum(1 for oppPos in opponents if manhattanDistance(pos, oppPos) <= 4)
 
             if food[next_x][next_y]:
                 features["eats-food"] = 1.0
@@ -828,7 +831,7 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         self.weightfile = self.aggroWeightFile = "./GoodWeights1.pkl"
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
-        self.save = False
+        self.save = True
 
     def getFeatures(self, s, a):
         opponents = self.getLikelyOppPosition()
