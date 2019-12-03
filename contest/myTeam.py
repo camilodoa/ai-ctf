@@ -235,7 +235,7 @@ class BigBrainAgent(CaptureAgent):
             pos = gameState.getAgentPosition(opp)
             if pos is not None:
                 for j, particle in enumerate(self.particles):
-                    if random.random() <= .25:
+                    if random.random() <= .75:
                         newParticle = list(particle)
                         newParticle[i] = pos
                         self.particles[j] = tuple(newParticle)
