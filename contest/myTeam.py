@@ -607,6 +607,7 @@ class GoodAggroAgent(PacmanQAgent):
         opponents = self.getLikelyOppPosition()
         ghosts = []
         oppPacmen = []
+
         # Fill out opponent arrays
         if self.isOnRedTeam:
             for opp in opponents:
@@ -614,12 +615,22 @@ class GoodAggroAgent(PacmanQAgent):
                     oppPacmen.append(opp)
                 else:
                     ghosts.append(opp)
+            friendPos = state.getAgentPosition([x for x in state.getRedTeamIndices() if x != self.index][0])
+            if pos[0] > self.border and friendPos[0] > self.border:
+                bothOffside = True
+            else:
+                bothOffside = False
         else:
             for opp in opponents:
                 if opp[0] >= self.border:
                     oppPacmen.append(opp)
                 else:
                     ghosts.append(opp)
+            friendPos = state.getAgentPosition([x for x in state.getBlueTeamIndices() if x != self.index][0])
+            if pos[0] <= self.border and friendPos[0] <= self.border:
+                bothOffside = True
+            else:
+                bothOffside = False
 
         # compute the location of pacman after he takes the action
         dx, dy = Actions.directionToVector(action)
@@ -649,6 +660,8 @@ class GoodAggroAgent(PacmanQAgent):
             if food[next_x][next_y]:
                 features['eats-food'] = 1.0
 
+            if bothOffside:
+                features['distance-to-friend'] = float(manhattanDistance(pos, friendPos)) / (walls.width * walls.height)
 
             dist = self.closestFood((next_x, next_y), food, walls)
             if dist is not None:
