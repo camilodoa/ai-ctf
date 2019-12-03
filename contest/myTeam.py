@@ -21,7 +21,7 @@ import game
 from game import Directions, Actions
 import itertools
 import time
-import pickle
+import cPickle as pickle
 
 #################
 # Team creation #
@@ -235,9 +235,20 @@ class BigBrainAgent(CaptureAgent):
             pos = gameState.getAgentPosition(opp)
             if pos is not None:
                 for j, particle in enumerate(self.particles):
-                    newParticle = list(particle)
-                    newParticle[i] = pos
-                    self.particles[j] = tuple(newParticle)
+                    if random.random() <= .25:
+                        newParticle = list(particle)
+                        newParticle[i] = pos
+                        self.particles[j] = tuple(newParticle)
+                    else:
+                        pass
+            else:
+                for j, particle in enumerate(self.particles):
+                    distance = util.manhattanDistance(pacmanPosition, particle[i])
+                    if distance <= 5:
+                        newParticle = list(particle)
+                        newParticle[i] = gameState.getInitialAgentPosition(opp)
+                        self.particles[j] = tuple(newParticle)
+
 
         weights = util.Counter()
         for particle in self.particles:
@@ -416,11 +427,6 @@ class PacmanQAgent(BigBrainAgent):
               reward = self.getReward(state.generateSuccessor(self.index, action), state)
               self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
-      if self.save:
-          file = open(self.weightfile,'wb')
-          pickle.dump(self.weights, file)
-          file.close()
-
       return action
 
   def update(self, state, action, nextState, reward):
@@ -428,9 +434,13 @@ class PacmanQAgent(BigBrainAgent):
        Should update your weights based on transition
     """
     difference = reward + self.discount*self.computeValueFromQValues(nextState) - self.getQValue(state, action)
-
     for feature in self.getFeatures(state, action).sortedKeys():
-        self.weights[feature] += self.alpha*difference*self.getFeatures(state, action)[feature]
+        self.weights[feature] = self.weights[feature] + self.alpha*difference*self.getFeatures(state, action)[feature]
+        if self.save:
+            file = open(self.weightfile,'w')
+            pickle.dump(self.weights, file)
+            file.close()
+
     return
 
 
@@ -582,7 +592,7 @@ class GoodAggroAgent(PacmanQAgent):
         # file.close()
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
-        self.save = False
+        self.save = True
 
 
     def getFeatures(self, state, action):
@@ -619,36 +629,36 @@ class GoodAggroAgent(PacmanQAgent):
         ghostsOneStepAway = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
 
          # count the number of opponents that are 4 steps or fewer away
-        oppFourStepsAway = sum(1 for oppPos in opponents if manhattanDistance(pos, oppPos) <= 4)
+        oppFourStepsAway = sum(1 for ghost in ghosts if manhattanDistance(pos, ghost) <= 4)
 
         # Only one feature if a ghost killed us
         if (next_x, next_y) in ghosts:
-            features["died"] = 1.0
-            features["distance-from-home"] = float(manhattanDistance(pos, self.start)) / (walls.width * walls.height)
+            features['died'] = 1.0
+            features['distance-from-home'] = float(manhattanDistance(pos, self.start)) / (walls.width * walls.height)
         # Only one feature if we're about to die
         elif ghostsOneStepAway >= 1:
-            features["ghosts-1-step-away"] = float(ghostsOneStepAway) / len(ghosts)
-            features["distance-from-home"] = float(manhattanDistance(pos, self.start)) / (walls.width * walls.height)
+            features['ghosts-1-step-away'] = float(ghostsOneStepAway) / len(ghosts)
+            features['distance-from-home'] = float(manhattanDistance(pos, self.start)) / (walls.width * walls.height)
         # Only one feature if there are opponents fewer than 4 steps away
         elif oppFourStepsAway >= 1:
-            features['opponents-4-steps-away'] = float(oppFourStepsAway) / len(opponents)
+            features['opponents-4-steps-away'] = float(oppFourStepsAway) / len(ghosts)
         # Otherwise, we have regular features
         else:
             features['successor-food-count'] = -self.getFood(successor).count(True)
 
             if food[next_x][next_y]:
-                features["eats-food"] = 1.0
+                features['eats-food'] = 1.0
 
 
             dist = self.closestFood((next_x, next_y), food, walls)
             if dist is not None:
                 # make the distance a number less than one otherwise the update
                 # will diverge wildly
-                features["closest-food"] = float(dist) / (walls.width * walls.height)
+                features['closest-food'] = float(dist) / (walls.width * walls.height)
 
             if len(ghosts) >= 1:
                 dists = [self.pacDist((next_x, next_y), pac, walls) for pac in ghosts]
-                features["closest-ghost"] = float(min(dists)) / (walls.width * walls.height)
+                features['closest-ghost'] = float(min(dists)) / (walls.width * walls.height)
 
             if action == Directions.STOP: features['stop'] = 1
 
@@ -761,7 +771,7 @@ class GoodDefensiveAgent(PacmanQAgent):
                 dists = [self.pacDist((next_x, next_y), pac, walls) for pac in oppPacmen]
                 features['closest-opp'] = float(min(dists)) / (walls.width * walls.height)
                 if (next_x, next_y) in oppPacmen:
-                    features["eats-pacman"] = 1.0
+                    features['eats-pacman'] = 1.0
 
         if action == Directions.STOP: features['stop'] = 1.0
         rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
