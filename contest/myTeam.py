@@ -281,8 +281,10 @@ class BigBrainAgent(CaptureAgent):
 
             for i, opponent in enumerate(self.getOpponents(gameState)):
                 currState = self.setGhostPosition(gameState, oldParticle[i], opponent)
-
                 actions = currState.getLegalActions(opponent)
+                # We could use our knowledge to see which action would be more likely
+                # Would be good to generate this based on whether we are offensive/defensive
+
                 action = random.sample(actions, 1)[0]
                 newParticle[i] = self.generateSuccessorPosition(oldParticle[i], action)
 
@@ -337,6 +339,7 @@ class PacmanQAgent(BigBrainAgent):
   """
 
   def registerInitialState(self, gameState):
+      start = time.time()
       BigBrainAgent.registerInitialState(self, gameState)
 
       self.start = gameState.getAgentPosition(self.index)
@@ -358,6 +361,7 @@ class PacmanQAgent(BigBrainAgent):
       self.numFood = self.getFood(gameState).count(True)
 
 
+
   def chooseAction(self, state):
       """
         Compute the action to take in the current state.  With
@@ -368,14 +372,31 @@ class PacmanQAgent(BigBrainAgent):
         HINT: You might want to use util.flipCoin(prob)
         HINT: To pick randomly from a list, use random.choice(list)
       """
+      start = time.time()
       self.observeState()
       self.elapseTime(state)
+      self_agent = state.getAgentState(self.index)
       if self.save:
           file = open(self.weightfile, 'r')
           self.weights = pickle.load(file)
 
       actions = state.getLegalActions(self.index)
-      if self.useMinimax:
+
+      # Pick Action using weigths and features
+      food = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood().count(True)
+      legalActions = state.getLegalActions(self.index)
+
+      # If we're finna win
+      if self_agent.numCarrying >= 3:
+        bestDist = 9999
+        for spec_action in legalActions:
+          successor = state.generateSuccessor(self.index, spec_action)
+          pos2 = successor.getAgentPosition(self.index)
+          dist = self.getMazeDistance(self.start,pos2)
+          if dist < bestDist:
+            action = spec_action
+            bestDist = dist
+      elif self.useMinimax:
           if util.flipCoin(self.epsilon):
               action = random.choice(actions)
           else:
@@ -407,26 +428,10 @@ class PacmanQAgent(BigBrainAgent):
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
       else:
-          # Pick Action using weigths and features
-          food = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood().count(True)
-          legalActions = state.getLegalActions(self.index)
-
-          # If we're finna win
-          if food <= 2:
-            bestDist = 9999
-            for spec_action in legalActions:
-              successor = state.generateSuccessor(self.index, spec_action)
-              pos2 = successor.getAgentPosition(self.index)
-              dist = self.getMazeDistance(self.start,pos2)
-              if dist < bestDist:
-                action = spec_action
-                bestDist = dist
-          # Otherwise
-          else:
-              action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
-              reward = self.getReward(state.generateSuccessor(self.index, action), state)
-              self.update(state, action, state.generateSuccessor(self.index, action), reward)
-
+          action = random.choice(legalActions) if util.flipCoin(self.epsilon) else self.computeActionFromQValues(state)
+          reward = self.getReward(state.generateSuccessor(self.index, action), state)
+          self.update(state, action, state.generateSuccessor(self.index, action), reward)
+      end = time.time()
       return action
 
   def update(self, state, action, nextState, reward):
@@ -450,6 +455,7 @@ class PacmanQAgent(BigBrainAgent):
       are no legal actions, which is the case at the terminal state,
       you should return None.
     """
+
     return None if len(state.getLegalActions(self.index)) == 0 else max([ (self.getQValue(state, action), action) for action in state.getLegalActions(self.index)], key=lambda x : x[0])[1]
 
   def computeValueFromQValues(self, state):
@@ -602,7 +608,6 @@ class GoodAggroAgent(PacmanQAgent):
         successor = state.generateSuccessor(self.index, action)
         agentState = state.getAgentState(self.index)
         # Meta data
-        food = self.getFood(state)
         walls = state.getWalls()
         opponents = self.getLikelyOppPosition()
         ghosts = []
@@ -610,6 +615,7 @@ class GoodAggroAgent(PacmanQAgent):
 
         # Fill out opponent arrays
         if self.isOnRedTeam:
+            food = state.getBlueFood()
             for opp in opponents:
                 if opp[0] < self.border:
                     oppPacmen.append(opp)
@@ -621,6 +627,7 @@ class GoodAggroAgent(PacmanQAgent):
             else:
                 bothOffside = False
         else:
+            food = state.getRedFood()
             for opp in opponents:
                 if opp[0] >= self.border:
                     oppPacmen.append(opp)
@@ -632,36 +639,33 @@ class GoodAggroAgent(PacmanQAgent):
             else:
                 bothOffside = False
 
-        # compute the location of pacman after he takes the action
-        dx, dy = Actions.directionToVector(action)
-        next_x, next_y = int(x + dx), int(y + dy)
+        next_x, next_y = self.generateSuccessorPosition(pos, action)
 
         # count the number of ghosts 1-step away
         ghostsOneStepAway = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
 
          # count the number of opponents that are 4 steps or fewer away
-        oppFourStepsAway = sum(1 for ghost in ghosts if manhattanDistance(pos, ghost) <= 4)
+        oppFourStepsAway = sum(1 for ghost in ghosts if self.getMazeDistance(pos, ghost) <= 4)
 
         # Only one feature if a ghost killed us
         if (next_x, next_y) in ghosts:
             features['died'] = 1.0
-            features['distance-from-home'] = float(manhattanDistance(pos, self.start)) / (walls.width * walls.height)
+            features['distance-from-home'] = float(self.getMazeDistance(pos, self.start)) / (walls.width * walls.height)
         # Only one feature if we're about to die
         elif ghostsOneStepAway >= 1:
             features['ghosts-1-step-away'] = float(ghostsOneStepAway) / len(ghosts)
-            features['distance-from-home'] = float(manhattanDistance(pos, self.start)) / (walls.width * walls.height)
+            features['distance-from-home'] = float(self.getMazeDistance(pos, self.start)) / (walls.width * walls.height)
         # Only one feature if there are opponents fewer than 4 steps away
         elif oppFourStepsAway >= 1:
             features['opponents-4-steps-away'] = float(oppFourStepsAway) / len(ghosts)
         # Otherwise, we have regular features
         else:
             features['successor-food-count'] = -self.getFood(successor).count(True)
-
             if food[next_x][next_y]:
                 features['eats-food'] = 1.0
 
             if bothOffside:
-                features['distance-to-friend'] = float(manhattanDistance(pos, friendPos)) / (walls.width * walls.height)
+                features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
 
             dist = self.closestFood((next_x, next_y), food, walls)
             if dist is not None:
@@ -674,6 +678,8 @@ class GoodAggroAgent(PacmanQAgent):
                 features['closest-ghost'] = float(min(dists)) / (walls.width * walls.height)
 
             if action == Directions.STOP: features['stop'] = 1
+            rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
+            if action == rev: features['reverse'] = 1.0
 
         features.divideAll(10.0)
         return features
@@ -683,9 +689,6 @@ class GoodAggroAgent(PacmanQAgent):
         pos = state.getAgentPosition(self.index)
         food = state.getBlueFood().count(True) if self.isOnRedTeam else state.getRedFood().count(True)
         food_score = -food # Total minus current
-
-        # State score
-        # score = self.reward + state.getScore() - lastState.getScore()
 
         # Food score
         score = food_score
@@ -750,27 +753,28 @@ class GoodDefensiveAgent(PacmanQAgent):
             else:
                 isOnside = True
 
-        food = self.getFoodYouAreDefending(state)
         walls = state.getWalls()
         opponents = self.getLikelyOppPosition()
         ghosts = []
         oppPacmen = []
         # Fill out opponent arrays
         if self.isOnRedTeam:
+            food = state.getRedFood()
             for opp in opponents:
                 if opp[0] < self.border:
                     oppPacmen.append(opp)
                 else:
                     ghosts.append(opp)
         else:
+            food = state.getBlueFood()
             for opp in opponents:
                 if opp[0] >= self.border:
                     oppPacmen.append(opp)
                 else:
                     ghosts.append(opp)
 
-        dx, dy = Actions.directionToVector(action)
-        next_x, next_y = int(x + dx), int(y + dy)
+        next_x, next_y = self.generateSuccessorPosition(pos, action)
+
         if not isOnside:
             features['distance-to-start'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
 
@@ -854,7 +858,8 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         self.weightfile = self.aggroWeightFile = "./GoodWeights1.pkl"
         file = open(self.weightfile, 'r')
         self.weights = pickle.load(file)
-        self.save = True
+        self.save = False
+
 
     def getFeatures(self, s, a):
         opponents = self.getLikelyOppPosition()
@@ -878,6 +883,7 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
+            
             self.weightfile = self.defensiveWeightFile
             file = open(self.weightfile, 'r')
             self.weights = pickle.load(file)
