@@ -806,7 +806,7 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
 
         global defensive_weights
         global aggressive_weights
-        defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2) or (score >= 6 and self.weights == defensive_weights))
+        defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2) or (score >= 9 and self.weights == defensive_weights))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
             if len(defenders) >= 2 and abs(x - self.home) >= 2 :
