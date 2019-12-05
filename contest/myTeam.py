@@ -53,7 +53,7 @@ def createTeam(firstIndex, secondIndex, isRed,
 ##########
 static_particles = None
 
-class BigBrainAgent(CaptureAgent):
+class GodDamnDumbAssAgent(CaptureAgent):
 
     def registerInitialState(self, gameState):
         """
@@ -235,12 +235,10 @@ class BigBrainAgent(CaptureAgent):
             pos = gameState.getAgentPosition(opp)
             if pos is not None:
                 for j, particle in enumerate(self.particles):
-                    if random.random() <= .75:
-                        newParticle = list(particle)
-                        newParticle[i] = pos
-                        self.particles[j] = tuple(newParticle)
-                    else:
-                        pass
+                    newParticle = list(particle)
+                    newParticle[i] = pos
+                    self.particles[j] = tuple(newParticle)
+
             else:
                 for j, particle in enumerate(self.particles):
                     distance = util.manhattanDistance(pacmanPosition, particle[i])
@@ -330,7 +328,7 @@ class BigBrainAgent(CaptureAgent):
         return beliefs.argMax()
 
 
-class PacmanQAgent(BigBrainAgent):
+class PacmanQAgent(GodDamnDumbAssAgent):
   "Exactly the same as QLearningAgent, but with different default parameters"
 
   """
@@ -339,7 +337,7 @@ class PacmanQAgent(BigBrainAgent):
 
   def registerInitialState(self, gameState):
       start = time.time()
-      BigBrainAgent.registerInitialState(self, gameState)
+      GodDamnDumbAssAgent.registerInitialState(self, gameState)
 
       self.start = gameState.getAgentPosition(self.index)
       opp = self.getOpponents(gameState)
@@ -436,10 +434,11 @@ class PacmanQAgent(BigBrainAgent):
       print("total choose action took ", end - start)
 
       sortedBeliefs = self.getBeliefDistribution().sortedKeys()
-      for i in range(10,0,-1):
-        decimal = float(i)/10
-        self.debugDraw([sortedBeliefs[i][0]], [decimal,0,decimal], clear = False)
-        self.debugDraw([sortedBeliefs[i][1]], [0,decimal,decimal], clear = False)
+      if len(sortedBeliefs) > 10:
+          for i in range(10,0,-1):
+            decimal = float(i)/10
+            self.debugDraw([sortedBeliefs[i][0]], [decimal,0,decimal], clear = False)
+            self.debugDraw([sortedBeliefs[i][1]], [0,decimal,decimal], clear = False)
 
       return action
 
@@ -591,7 +590,7 @@ class PacmanQAgent(BigBrainAgent):
 
 class GoodAggroAgent(PacmanQAgent):
     def registerInitialState(self, gameState):
-        BigBrainAgent.registerInitialState(self, gameState)
+        GodDamnDumbAssAgent.registerInitialState(self, gameState)
         PacmanQAgent.registerInitialState(self, gameState)
         self.epsilon = 0.0
         self.gamma = self.discount = 0.8
@@ -624,12 +623,14 @@ class GoodAggroAgent(PacmanQAgent):
 
         # Fill out opponent arrays
         if self.isOnRedTeam:
+            oppindices = state.getBlueTeamIndices()
             food = state.getBlueFood()
-            for opp in opponents:
+            for i, opp in enumerate(opponents):
                 if opp[0] < self.border:
                     oppPacmen.append(opp)
                 else:
-                    ghosts.append(opp)
+                    if state.getAgentState(oppindices[i]).scaredTimer == 0:
+                        ghosts.append(opp)
             friendPos = state.getAgentPosition([x for x in state.getRedTeamIndices() if x != self.index][0])
             if pos[0] > self.border and friendPos[0] > self.border:
                 bothOffside = True
@@ -637,11 +638,13 @@ class GoodAggroAgent(PacmanQAgent):
                 bothOffside = False
         else:
             food = state.getRedFood()
-            for opp in opponents:
+            oppindices = state.getRedTeamIndices()
+            for i, opp in enumerate(opponents):
                 if opp[0] >= self.border:
                     oppPacmen.append(opp)
                 else:
-                    ghosts.append(opp)
+                    if state.getAgentState(oppindices[i]).scaredTimer == 0:
+                        ghosts.append(opp)
             friendPos = state.getAgentPosition([x for x in state.getBlueTeamIndices() if x != self.index][0])
             if pos[0] <= self.border and friendPos[0] <= self.border:
                 bothOffside = True
@@ -660,11 +663,8 @@ class GoodAggroAgent(PacmanQAgent):
         if (next_x, next_y) in ghosts:
             features['died'] = 1.0
             features['distance-from-home'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
-
-            print("DIED")
         # Only one feature if we're about to die
         elif ghostsOneStepAway >= 1:
-            print("BOUTTA DIE")
             features['ghosts-1-step-away'] = float(ghostsOneStepAway) / len(ghosts)
             features['distance-from-home'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
         # Only one feature if there are opponents fewer than 4 steps away
@@ -676,7 +676,6 @@ class GoodAggroAgent(PacmanQAgent):
             features['successor-food-count'] = -self.getFood(successor).count(True)
             if food[next_x][next_y]:
                 features['eats-food'] = 1.0
-                print("EAT")
 
             # if bothOffside:
                 # features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
@@ -729,7 +728,7 @@ class GoodAggroAgent(PacmanQAgent):
 
 class GoodDefensiveAgent(PacmanQAgent):
     def registerInitialState(self, gameState):
-        BigBrainAgent.registerInitialState(self, gameState)
+        GodDamnDumbAssAgent.registerInitialState(self, gameState)
         PacmanQAgent.registerInitialState(self, gameState)
         self.epsilon = 0.0
         self.gamma = self.discount = 0.8
@@ -799,12 +798,10 @@ class GoodDefensiveAgent(PacmanQAgent):
             if agentState.scaredTimer > 0:
                 features['is-scared'] = 1
                 features['closest-killer'] = float(min(dists)) / (walls.width * walls.height)
-            else:
-                features['closest-opp'] = float(min(dists)) / (walls.width * walls.height)
-                features['num-opps'] = len(oppPacmen)
-                features['closest-opp'] = float(min(dists)) / (walls.width * walls.height)
-                if (next_x, next_y) in oppPacmen:
-                    features['eats-pacman'] = 1.0
+            features['num-opps'] = len(oppPacmen)
+            features['closest-opp'] = float(min(dists)) / (walls.width * walls.height)
+            if (next_x, next_y) in oppPacmen:
+                features['eats-pacman'] = 1.0
 
         if action == Directions.STOP: features['stop'] = 1.0
         rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
@@ -859,7 +856,7 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         - be aggressive!
     '''
     def registerInitialState(self, s):
-        BigBrainAgent.registerInitialState(self, s)
+        GodDamnDumbAssAgent.registerInitialState(self, s)
         PacmanQAgent.registerInitialState(self, s)
         self.epsilon = 0.00
         self.gamma = self.discount = 0.8
