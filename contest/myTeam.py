@@ -655,6 +655,8 @@ class GoodAggroAgent(PacmanQAgent):
         # Only one feature if a ghost killed us
         if (next_x, next_y) in ghosts:
             features['died'] = 1.0
+            features['distance-from-home'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
+
             print("DIED")
         # Only one feature if we're about to die
         elif ghostsOneStepAway >= 1:
@@ -664,6 +666,7 @@ class GoodAggroAgent(PacmanQAgent):
         # Only one feature if there are opponents fewer than 4 steps away
         elif oppFourStepsAway >= 1:
             features['opponents-4-steps-away'] = float(oppFourStepsAway) / len(ghosts)
+            features['distance-from-home'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
         # Otherwise, we have regular features
         else:
             features['successor-food-count'] = -self.getFood(successor).count(True)
