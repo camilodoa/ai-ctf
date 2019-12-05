@@ -310,10 +310,6 @@ class BigBrainAgent(CaptureAgent):
         for particle in self.particles:
             beliefs[particle] += 1
         beliefs.normalize()
-        sortedBeliefs = beliefs.sortedKeys()
-        for i in range(10,1,-1):
-            decimal = float(i/10)
-            self.debugDraw([sortedBeliefs[0], sortedBeliefs[1]], [0,decimal,decimal], clear = True)
         return beliefs
 
     def setGhostPosition(self, gameState, ghostPosition, oppIndex):
@@ -375,6 +371,7 @@ class PacmanQAgent(BigBrainAgent):
         HINT: You might want to use util.flipCoin(prob)
         HINT: To pick randomly from a list, use random.choice(list)
       """
+      self.debugDraw([(0,0)], [0,0,0], clear = True)
       start = time.time()
       self.observeState()
       self.elapseTime(state)
@@ -437,6 +434,13 @@ class PacmanQAgent(BigBrainAgent):
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
       end = time.time()
       print("total choose action took ", end - start)
+
+      sortedBeliefs = self.getBeliefDistribution().sortedKeys()
+      for i in range(10,0,-1):
+        decimal = float(i)/10
+        self.debugDraw([sortedBeliefs[i][0]], [decimal,0,decimal], clear = False)
+        self.debugDraw([sortedBeliefs[i][1]], [0,decimal,decimal], clear = False)
+
       return action
 
   def update(self, state, action, nextState, reward):
