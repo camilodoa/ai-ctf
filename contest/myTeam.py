@@ -310,7 +310,10 @@ class BigBrainAgent(CaptureAgent):
         for particle in self.particles:
             beliefs[particle] += 1
         beliefs.normalize()
-        self.debugDraw([beliefs.argMax()[0], beliefs.argMax()[1]], [0,.5,.5], clear = True)
+        sortedBeliefs = beliefs.sortedKeys()
+        for i in range(10,1,-1):
+            decimal = float(i/10)
+            self.debugDraw([sortedBeliefs[0], sortedBeliefs[1]], [0,decimal,decimal], clear = True)
         return beliefs
 
     def setGhostPosition(self, gameState, ghostPosition, oppIndex):
