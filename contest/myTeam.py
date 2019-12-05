@@ -135,7 +135,7 @@ class BigBrainAgent(CaptureAgent):
         if s.isOver():
             return self.evaluationFunction(s)
 
-        if self.cutoffTest(t, 0.6, depth):
+        if self.cutoffTest(t, 0.5, depth):
             return self.evaluationFunction(s)
 
         teams = self.getTeam(s) + self.getOpponents(s)
@@ -378,6 +378,7 @@ class PacmanQAgent(BigBrainAgent):
       start = time.time()
       self.observeState()
       self.elapseTime(state)
+      print("particle filtering took ", time.time() - start)
       self_agent = state.getAgentState(self.index)
       if self.save:
           file = open(self.weightfile, 'r')
@@ -403,7 +404,7 @@ class PacmanQAgent(BigBrainAgent):
           if util.flipCoin(self.epsilon):
               action = random.choice(actions)
           else:
-              startTime = time.time()
+              startTime = start
               max_score = -99999
               max_action = None
               alpha = -99999
@@ -435,6 +436,7 @@ class PacmanQAgent(BigBrainAgent):
           reward = self.getReward(state.generateSuccessor(self.index, action), state)
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
       end = time.time()
+      print("total choose action took ", end - start)
       return action
 
   def update(self, state, action, nextState, reward):
@@ -591,7 +593,7 @@ class GoodAggroAgent(PacmanQAgent):
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
-        self.depth = 4
+        self.depth = 3
         self.useMinimax = True
 
         self.weightfile = "./GoodWeights1.pkl"
@@ -724,7 +726,7 @@ class GoodDefensiveAgent(PacmanQAgent):
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
-        self.depth = 3
+        self.depth = 2
         self.useMinimax = True
 
         self.weightfile = "./GoodWeights2.pkl"
@@ -778,17 +780,19 @@ class GoodDefensiveAgent(PacmanQAgent):
 
         next_x, next_y = self.generateSuccessorPosition(pos, action)
 
+        dists = [self.pacDist((next_x, next_y), pac, walls) for pac in oppPacmen]
+
         if not isOnside:
             features['distance-to-start'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
 
-        elif len(oppPacmen) > 0:
+        if len(oppPacmen) > 0:
             dists = [self.pacDist((next_x, next_y), pac, walls) for pac in oppPacmen]
             if agentState.scaredTimer > 0:
                 features['is-scared'] = 1
                 features['closest-killer'] = float(min(dists)) / (walls.width * walls.height)
             else:
+                features['closest-opp'] = float(min(dists)) / (walls.width * walls.height)
                 features['num-opps'] = len(oppPacmen)
-                dists = [self.pacDist((next_x, next_y), pac, walls) for pac in oppPacmen]
                 features['closest-opp'] = float(min(dists)) / (walls.width * walls.height)
                 if (next_x, next_y) in oppPacmen:
                     features['eats-pacman'] = 1.0
@@ -848,12 +852,12 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
     def registerInitialState(self, s):
         BigBrainAgent.registerInitialState(self, s)
         PacmanQAgent.registerInitialState(self, s)
-        self.epsilon = 0.05
+        self.epsilon = 0.00
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
-        self.depth = 3
-        self.useMinimax = False
+        self.useMinimax = True
+        self.depth = 2
 
         # Weightfiles used for switching behavior
         # Agents start off as offensive
@@ -886,7 +890,7 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
-            
+
             self.weightfile = self.defensiveWeightFile
             file = open(self.weightfile, 'r')
             self.weights = pickle.load(file)
