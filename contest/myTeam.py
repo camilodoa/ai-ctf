@@ -32,7 +32,7 @@ def createTeam(firstIndex, secondIndex, isRed,
 static_particles = None
 
 aggressive_weights = {
-    'closest-food' : -10.6628632625195814,
+    'closest-food' : -5.6628632625195814,
     'reverse' : -25.782246190694242,
     'closest-ghost' : 0.092345634713250316,
     'stop' : -30.264430656804493,
@@ -42,15 +42,15 @@ aggressive_weights = {
     'opponents-4-steps-away' : -3.0550523826620437,
     'successor-food-count' : 100.0021893740633943063,
     'died' : -4000.5819301567078,
-    'eats-food' : 100.622005393403555
+    'eats-food' : 10.622005393403555
 }
 
 defensive_weights = {
     'is-scared' : -106.6844053716024,
     'reverse' : -25.782246190694242,
-    'closest-opp' : -102.05772051407411,
+    'closest-opp' : -202.05772051407411,
     'distance-to-start' : -50.5319388749071949,
-    'stop' : -17.11940638920235,
+    'stop' : -30.11940638920235,
     'eats-pacman' : 1000.184096316507649,
     'num-opps': -266.13745693758131,
     'closest-killer' : 0.4731431889471642
@@ -88,7 +88,7 @@ class SmartAgent(CaptureAgent):
       walls = state.getWalls()
 
       self.start = state.getAgentPosition(self.index)
-      self.border = walls.width//2
+      self.border = float(abs(state.getInitialAgentPosition(opp[0])[0] - self.start[0]))/2
 
       # Q learning
       self.epsilon = 0.0
@@ -99,6 +99,11 @@ class SmartAgent(CaptureAgent):
       self.learn = True
       self.numOurFood = self.getFoodYouAreDefending(state).count(True)
       self.numFood = self.getFood(state).count(True)
+
+      if self.isOnRedTeam:
+          self.home = self.border/2
+      else:
+          self.home = self.border + self.border/2
 
       # Minimax
       self.use_minimax = False
@@ -171,25 +176,22 @@ class SmartAgent(CaptureAgent):
       '''
         Returns best action to get you home, avoiding opponents
       '''
-      print("homebound")
-      print("change distance to home to closeness")
       weights = {
-        'distance-from-home' : -10000.920029901729379,
+        'distance-from-home' : -100.920029901729379,
         'closest-ghost' : 20.092345634713250316,
         'stop' : -30.264430656804493,
         'ghosts-1-step-away' : -2000.9683911932976,
         'opponents-4-steps-away' : -3.0550523826620437,
-        'died' : -4000.5819301567078
+        'died' : -4000.5819301567078,
+        'best-action' : 400
       }
-      print("legal actions ", state.getLegalActions(self.index))
-      print([ (self.getHomeboundFeatures(state, action).__mul__(weights), self.getHomeboundFeatures(state, action), action) for action in state.getLegalActions(self.index) ])
-      print("\n")
       return None if len(state.getLegalActions(self.index)) == 0 else max([ (self.getHomeboundFeatures(state, action).__mul__(weights), action) for action in state.getLegalActions(self.index) ], key=lambda x : x[0])[1]
 
   def getHomeboundFeatures(self, state, action):
       features = util.Counter()
       x, y = pos = state.getAgentPosition(self.index)
       successor = state.generateSuccessor(self.index, action)
+      actions = state.getLegalActions(self.index)
       # Meta data
       walls = state.getWalls()
       opponents = self.getLikelyOppPosition()
@@ -198,6 +200,7 @@ class SmartAgent(CaptureAgent):
 
       # Fill out opponent arrays
       if self.isOnRedTeam:
+          home = (int(self.border/2), )
           oppindices = state.getBlueTeamIndices()
           for i, opp in enumerate(opponents):
               if opp[0] < self.border:
@@ -213,6 +216,18 @@ class SmartAgent(CaptureAgent):
               else:
                   if state.getAgentState(oppindices[i]).scaredTimer == 0:
                       ghosts.append(opp)
+
+      best_dist = 9999
+      for spec_action in actions:
+          successor = state.generateSuccessor(self.index, spec_action)
+          pos2 = successor.getAgentPosition(self.index)
+          dist = self.getMazeDistance(self.start, pos2)
+          if dist < best_dist:
+              best_action = spec_action
+              best_dist = dist
+
+      if best_action == action:
+          features['best-action'] = 1
 
       next_x, next_y = self.generateSuccessorPosition(pos, action)
 
@@ -319,8 +334,6 @@ class SmartAgent(CaptureAgent):
           return True
       return False
 
-  def evaluationFunction(self, state):
-      return util.raiseNotDefined()
   '''
   ################################################################### Expectimax
   '''
@@ -476,6 +489,7 @@ class SmartAgent(CaptureAgent):
       are no legal actions, which is the case at the terminal state,
       you should return None.
     """
+    # print([(self.getQValue(state, action), action, self.getFeatures(state, action)) for action in state.getLegalActions(self.index)])
     return None if len(state.getLegalActions(self.index)) == 0 else max([(self.getQValue(state, action), action) for action in state.getLegalActions(self.index)], key=lambda x : x[0])[1]
 
   def computeValueFromQValues(self, state):
@@ -630,12 +644,12 @@ class AggressiveAgent(SmartAgent):
             features['distance-from-home'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
         # Otherwise, we have regular features
         else:
-            features['successor-food-count'] = -self.getFood(successor).count(True)
+            features['successor-food-count'] = -food.count(True)
             if food[next_x][next_y]:
                 features['eats-food'] = 1.0
 
-            # if bothOffside:
-                # features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
+            if bothOffside:
+                features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
 
             dist = self.closestFood((next_x, next_y), food, walls)
             if dist is not None:
@@ -682,17 +696,6 @@ class DefensiveAgent(SmartAgent):
         agentState = state.getAgentState(self.index)
         walls = state.getWalls()
         # Meta data
-        # Onside calculation
-        if self.isOnRedTeam:
-            if pos[0] > self.border:
-                isOnside = False
-            else:
-                isOnside = True
-        else:
-            if pos[0] <= self.border:
-                isOnside = False
-            else:
-                isOnside = True
 
         walls = state.getWalls()
         opponents = self.getLikelyOppPosition()
@@ -700,6 +703,11 @@ class DefensiveAgent(SmartAgent):
         oppPacmen = []
         # Fill out opponent arrays
         if self.isOnRedTeam:
+            if pos[0] > self.border:
+                isOnside = False
+            else:
+                isOnside = True
+
             food = state.getRedFood()
             for opp in opponents:
                 if opp[0] < self.border:
@@ -707,6 +715,11 @@ class DefensiveAgent(SmartAgent):
                 else:
                     ghosts.append(opp)
         else:
+            if pos[0] <= self.border:
+                isOnside = False
+            else:
+                isOnside = True
+
             food = state.getBlueFood()
             for opp in opponents:
                 if opp[0] >= self.border:
@@ -720,12 +733,11 @@ class DefensiveAgent(SmartAgent):
 
         if not isOnside:
             features['distance-to-start'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
-
         if len(oppPacmen) > 0:
             dists = [self.dist((next_x, next_y), pac, walls) for pac in oppPacmen]
-            if agentState.scaredTimer > 0:
-                features['is-scared'] = 1
-                features['closest-killer'] = float(min(dists)) / (walls.width * walls.height)
+            # if agentState.scaredTimer > 0:
+            #     features['is-scared'] = 1
+            #     features['closest-killer'] = float(min(dists)) / (walls.width * walls.height)
             features['num-opps'] = len(oppPacmen)
             features['closest-opp'] = float(min(dists)) / (walls.width * walls.height)
             if (next_x, next_y) in oppPacmen:
@@ -771,12 +783,13 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
         global aggressive_weights
         self.weights = aggressive_weights
 
-
-    def getFeatures(self, s, a):
+    def chooseAction(self, s):
+        x, y = s.getAgentPosition(self.index)
         opponents = self.getLikelyOppPosition()
         defenders = []
         invaders = []
         us = s.getAgentState(self.index)
+        score = self.getScore(s)
         # Fill out opponent arrays
         if self.isOnRedTeam:
             for opp in opponents:
@@ -791,19 +804,35 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
                 else:
                     defenders.append(opp)
 
-        defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2))
+        global defensive_weights
+        global aggressive_weights
+        defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2) or (score >= 6 and self.weights == defensive_weights))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
-            global defensive_weights
-            self.weights = defensive_weights
-            features = DefensiveAgent.getFeatures(self, s, a)
-            return features
+            if len(defenders) >= 2 and abs(x - self.home) >= 2 :
+                action = self.returnHome(s)
+                print("country roads... take me home")
+            else:
+                print("defense for agent ", self.index)
+                print("score ", score)
+                self.weights = defensive_weights
+                action = DefensiveAgent.chooseAction(self, s)
+
         # Otherwise, be aggressive!
         else:
-            global aggressive_weights
+            print("offense for agent ", self.index)
+
             self.weights = aggressive_weights
-            features = AggressiveAgent.getFeatures(self, s, a)
-            return features
+            action = AggressiveAgent.chooseAction(self, s)
+        return action
+
+    def getFeatures(self, s, a):
+        global defensive_weights
+        global aggressive_weights
+        if self.weights == defensive_weights : return DefensiveAgent.getFeatures(self, s, a)
+        elif self.weights == aggressive_weights : return AggressiveAgent.getFeatures(self, s, a)
+
+
 '''
 #################################################################  RationalAgent
 '''
