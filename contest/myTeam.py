@@ -597,7 +597,7 @@ class GoodAggroAgent(PacmanQAgent):
         self.gamma = self.discount = 0.8
         self.alpha = 0.2
         self.reward = -1
-        self.depth = 3
+        self.depth = 2
         self.useMinimax = True
 
         self.weightfile = "./GoodWeights1.pkl"
@@ -654,16 +654,17 @@ class GoodAggroAgent(PacmanQAgent):
         ghostsOneStepAway = sum((next_x, next_y) in Actions.getLegalNeighbors(g, walls) for g in ghosts)
 
          # count the number of opponents that are 4 steps or fewer away
-        oppFourStepsAway = sum(1 for ghost in ghosts if self.getMazeDistance(pos, ghost) <= 4)
+        oppFourStepsAway = sum(1 for ghost in ghosts if self.getMazeDistance((next_x, next_y), ghost) <= 4)
 
         # Only one feature if a ghost killed us
         if (next_x, next_y) in ghosts:
             features['died'] = 1.0
-            features['distance-from-home'] = float(self.getMazeDistance(pos, self.start)) / (walls.width * walls.height)
+            print("DIED")
         # Only one feature if we're about to die
         elif ghostsOneStepAway >= 1:
+            print("BOUTTA DIE")
             features['ghosts-1-step-away'] = float(ghostsOneStepAway) / len(ghosts)
-            features['distance-from-home'] = float(self.getMazeDistance(pos, self.start)) / (walls.width * walls.height)
+            features['distance-from-home'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
         # Only one feature if there are opponents fewer than 4 steps away
         elif oppFourStepsAway >= 1:
             features['opponents-4-steps-away'] = float(oppFourStepsAway) / len(ghosts)
@@ -672,9 +673,10 @@ class GoodAggroAgent(PacmanQAgent):
             features['successor-food-count'] = -self.getFood(successor).count(True)
             if food[next_x][next_y]:
                 features['eats-food'] = 1.0
+                print("EAT")
 
-            if bothOffside:
-                features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
+            # if bothOffside:
+                # features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
 
             dist = self.closestFood((next_x, next_y), food, walls)
             if dist is not None:
