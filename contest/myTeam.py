@@ -11,15 +11,9 @@
 # Student side autograding was added by Brad Miller, Nick Hay, and
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
-
-from captureAgents import CaptureAgent
-from keyboardAgents import KeyboardAgent
-import random, time, util
-from util import manhattanDistance
-import game
+import random, time, util, game, itertools
 from game import Directions, Actions
-import itertools
-import cPickle as pickle
+from captureAgents import CaptureAgent
 
 #################
 # Team creation #
@@ -60,7 +54,7 @@ aggressive_weights = {
     'closest-ghost' : 0.092345634713250316,
     'stop' : -30.264430656804493,
     'distance-to-friend' : 2.5003935434660369,
-    'ghosts-1-step-away' : -2000.9683911932976,
+    'ghosts-1-step-away' : -100.9683911932976,
     'distance-from-home' : -10000.920029901729379,
     'opponents-4-steps-away' : -3.0550523826620437,
     'successor-food-count' : 100.0021893740633943063,
@@ -94,12 +88,6 @@ class GodDamnDumbAssAgent(CaptureAgent):
         IMPORTANT: This method may run for at most 15 seconds.
         """
 
-        '''
-        Make sure you do not delete the following line. If you would like to
-        use Manhattan distances instead of maze distances in order to save
-        on initialization time, please take a look at
-        CaptureAgent.registerInitialState in captureAgents.py.
-        '''
         CaptureAgent.registerInitialState(self, state)
 
         # Start up particle filtering
@@ -119,7 +107,6 @@ class GodDamnDumbAssAgent(CaptureAgent):
 
     ################################################################
     '''
-
     def minimax(self, s, t, turn, alpha, beta, depth):
         if s.isOver():
             return self.evaluationFunction(s)
@@ -200,18 +187,21 @@ class GodDamnDumbAssAgent(CaptureAgent):
 
     def initializeParticles(self, state):
         global static_particles
-
         if static_particles is None:
-            opponents = self.getOpponents(state)
-            start_positions = tuple([state.getInitialAgentPosition(opponent) for opponent in opponents])
+            permutations = list(itertools.product(self.legalPositions, repeat=self.numGhosts))
+            random.shuffle(permutations)
+
+            particlesPerPerm = self.numParticles // len(permutations)
             self.particles = []
+            for permutation in permutations:
+                for i in xrange(particlesPerPerm):
+                    self.particles.append(permutation)
 
-            for p in xrange(self.numParticles):
-                self.particles.append(start_positions)
-
+            remainderParticles = self.numParticles - (particlesPerPerm * len(permutations))
+            for i in xrange(remainderParticles):
+                self.particles.append(random.choice(permutations))
             static_particles = self.particles
             return self.particles
-
         else:
             self.particles = static_particles
             return self.particles
@@ -231,12 +221,10 @@ class GodDamnDumbAssAgent(CaptureAgent):
             pos = state.getAgentPosition(opp)
             if pos is not None:
                 for j, particle in enumerate(self.particles):
-                    if random.random() <= .25:
-                        newParticle = list(particle)
-                        newParticle[i] = pos
-                        self.particles[j] = tuple(newParticle)
-                    else:
-                        pass
+                    newParticle = list(particle)
+                    newParticle[i] = pos
+                    self.particles[j] = tuple(newParticle)
+
             else:
                 for j, particle in enumerate(self.particles):
                     distance = util.manhattanDistance(pacmanPosition, particle[i])
@@ -346,7 +334,6 @@ class PacmanQAgent(GodDamnDumbAssAgent):
       self.reward = -0.1
       self.isOnRedTeam = state.isOnRedTeam(self.index)
       self.use_minimax = True
-      self.save = True
       self.learn = True
       self.numOurFood = self.getFoodYouAreDefending(state).count(True)
       self.numFood = self.getFood(state).count(True)
@@ -363,11 +350,6 @@ class PacmanQAgent(GodDamnDumbAssAgent):
 
       # Particle filtering
       self.observeState()
-      self.elapseTime(state)
-
-      if self.save:
-          file = open(self.weightfile, 'r')
-          self.weights = pickle.load(file)
 
       # If we're carrying enough, just go home!
       if self_agent.numCarrying >= 3:
@@ -411,6 +393,9 @@ class PacmanQAgent(GodDamnDumbAssAgent):
       # Draw particle distribution
       self.drawBeliefs()
 
+      # Update particles
+      self.elapseTime(state)
+
       end = time.time()
       if end - start > 1 : print("Overtime --> total time was ", end - start)
 
@@ -450,11 +435,6 @@ class PacmanQAgent(GodDamnDumbAssAgent):
     for feature in self.getFeatures(state, action).sortedKeys():
         self.weights[feature] = self.weights[feature] + self.alpha*difference*self.getFeatures(state, action)[feature]
 
-        if self.save:
-            file = open(self.weightfile,'w')
-            pickle.dump(self.weights, file)
-            file.close()
-
     return
 
 
@@ -477,7 +457,7 @@ class PacmanQAgent(GodDamnDumbAssAgent):
     return 0 if len(state.getLegalActions(self.index)) == 0 else max([self.getQValue(state, action) for action in state.getLegalActions(self.index)])
 
   def getWeights(self):
-    return self.weights
+    util.raiseNotDefined()
 
   def getQValue(self, state, action):
     """
@@ -549,16 +529,7 @@ class GoodAggroAgent(PacmanQAgent):
         self.reward = -1
         self.depth = 2
         self.use_minimax = True
-
-        self.weightfile = "./GoodWeights1.pkl"
-        # self.weights = util.Counter()
-        # file = open(self.weightfile,'wb')
-        # pickle.dump(self.weights, file)
-        # file.close()
-        file = open(self.weightfile, 'r')
-        self.weights = pickle.load(file)
-        self.save = True
-
+        self.weights = self.getWeights()
 
     def getFeatures(self, state, action):
         # Agressive features
@@ -667,15 +638,7 @@ class GoodDefensiveAgent(PacmanQAgent):
         self.reward = -1
         self.depth = 2
         self.use_minimax = True
-
-        self.weightfile = "./GoodWeights2.pkl"
-        # self.weights = util.Counter()
-        # file = open(self.weightfile,'wb')
-        # pickle.dump(self.weights, file)
-        # file.close()
-        file = open(self.weightfile, 'r')
-        self.weights = pickle.load(file)
-        self.save = False
+        self.weights = self.getWeights()
 
     def getFeatures(self, state, action):
         # Defensive features
@@ -771,13 +734,8 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         self.use_minimax = True
         self.depth = 2
 
-        # Weightfiles used for switching behavior
-        # Agents start off as offensive
-        self.defensiveWeightFile = "./GoodWeights2.pkl"
-        self.weightfile = self.aggroWeightFile = "./GoodWeights1.pkl"
-        file = open(self.weightfile, 'r')
-        self.weights = pickle.load(file)
-        self.save = False
+        global aggressive_weights
+        self.weights = aggressive_weights
 
 
     def getFeatures(self, s, a):
@@ -802,16 +760,14 @@ class RationalAgent(GoodDefensiveAgent, GoodAggroAgent, PacmanQAgent):
         defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
+            global defensive_weights
+            self.weights = defensive_weights
 
-            self.weightfile = self.defensiveWeightFile
-            file = open(self.weightfile, 'r')
-            self.weights = pickle.load(file)
             features = GoodDefensiveAgent.getFeatures(self, s, a)
             return features
         # Otherwise, be aggressive!
         else:
-            self.weightfile = self.aggroWeightFile
-            file = open(self.weightfile, 'r')
-            self.weights = pickle.load(file)
+            global aggressive_weights
+            self.weights = aggressive_weights
             features = GoodAggroAgent.getFeatures(self, s, a)
             return features
