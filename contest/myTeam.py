@@ -100,22 +100,22 @@ class SmartAgent(CaptureAgent):
       self.alpha = 0.3
       self.reward = -1
       self.isOnRedTeam = state.isOnRedTeam(self.index)
-      self.learn = True
+      self.learn = False
       self.numOurFood = self.getFoodYouAreDefending(state).count(True)
       self.numFood = self.getFood(state).count(True)
       self.food = state.getBlueFood() if self.isOnRedTeam else state.getRedFood()
 
       if self.isOnRedTeam:
-          self.home = (self.border - self.border/2 + 1, walls.height/2)
+          self.home = (self.border - self.border/2 + 2, walls.height/2)
       else:
-          self.home = (self.border + self.border/2 - 1, walls.height/2)
+          self.home = (self.border + self.border/2 - 2, walls.height/2)
 
       if self.home not in self.legal_positions:
           self.home = min([(manhattanDistance(self.home, position), position) for position in self.legal_positions],key = lambda x : x[0])[1]
 
       # Minimax
       self.use_minimax = False
-      self.depth = 4
+      self.depth = 3
 
 
   def chooseAction(self, state):
@@ -129,33 +129,34 @@ class SmartAgent(CaptureAgent):
       # Particle filtering
       self.observeState()
 
+      particle_filtering_time = time.time() - start
+
       # If we're carrying enough, just go home!
       if self_agent.numCarrying >= 3:
         return self.returnHome(state)
 
       # Otherwise, run minimax
       elif self.use_minimax:
-          startTime = start
           max_score = -99999
           max_action = None
           alpha = -99999
           beta = 99999
           for action in actions:
-              if action != "Stop":
-                  # Update successor ghost positions to be the max pos in our particle distributions
-                  successor = state.generateSuccessor(self.index, action)
-                  ghosts = self.getBeliefDistribution().argMax()
-                  successor = self.setGhostPositions(successor, ghosts, self.getOpponents(state))
+              # Update successor ghost positions to be the max pos in our particle distributions
+              successor = state.generateSuccessor(self.index, action)
+              ghosts = self.getBeliefDistribution().argMax()
+              successor = self.setGhostPositions(successor, ghosts, self.getOpponents(state))
 
-                  result = self.minimax(successor, startTime, 1, alpha, beta, 1)
-                  if result >= max_score:
-                      max_score = result
-                      max_action = action
+              time_depth = 1 - particle_filtering_time -0.2
+              result = self.minimax(successor, start, 1, alpha, beta, 1, time_depth)
+              if result >= max_score:
+                  max_score = result
+                  max_action = action
 
-                  if max_score > beta:
-                      return max_action
+              if max_score > beta:
+                  return max_action
 
-                  alpha = max(alpha, max_score)
+              alpha = max(alpha, max_score)
 
           action = max_action
 
@@ -284,12 +285,12 @@ class SmartAgent(CaptureAgent):
   '''
   Expectimax ###################################################################
   '''
-  def minimax(self, s, t, turn, alpha, beta, depth):
+  def minimax(self, s, t, turn, alpha, beta, depth, time_depth):
       if s.isOver():
           return self.evaluationFunction(s)
 
-      if self.cutoffTest(t, 0.5, depth):
-          return self.evaluationFunction(s)
+      if self.cutoffTest(t, time_depth, depth):
+          return self.evaluationFunction(s) + random.random()*0.005
 
       teams = self.getTeam(s) + self.getOpponents(s)
 
@@ -298,13 +299,12 @@ class SmartAgent(CaptureAgent):
           actions = s.getLegalActions(teams[turn])
 
           for action in actions:
-              if action != "Stop":
-                  result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta, depth + 1)
-                  if result > max_action:
-                      max_action = result
+              result = self.minimax(s.generateSuccessor(teams[turn], action), t, turn + 1, alpha, beta, depth + 1, time_depth)
+              if result > max_action:
+                  max_action = result
 
-                  if max_action > beta:
-                      return max_action
+              if max_action > beta:
+                  return max_action
 
               alpha = max(alpha, max_action)
 
@@ -318,11 +318,11 @@ class SmartAgent(CaptureAgent):
               if turn == 3:
                   newPos = self.generateSuccessorPosition(s.getAgentPosition(teams[turn]), action)
                   successor = self.setGhostPosition(s, newPos, teams[turn])
-                  result = self.minimax(sucessor, t, turn + 1, alpha, beta, depth + 1)
+                  result = self.minimax(sucessor, t, turn + 1, alpha, beta, depth + 1, time_depth)
               else:
                   newPos = self.generateSuccessorPosition(s.getAgentPosition(teams[turn]), action)
                   successor = self.setGhostPosition(s, newPos, teams[turn])
-                  result = self.minimax(successor, t, 0, alpha, beta, depth + 1)
+                  result = self.minimax(successor, t, 0, alpha, beta, depth + 1, time_depth)
 
               if result < min_action:
                   min_action = result
@@ -808,8 +808,6 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
     '''
     def registerInitialState(self, s):
         SmartAgent.registerInitialState(self, s)
-        self.depth = 5
-
         global aggressive_weights
         self.weights = aggressive_weights
 
