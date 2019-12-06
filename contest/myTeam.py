@@ -56,7 +56,7 @@ defensive_weights = {
     'eats-pacman' : 1000.184096316507649,
     'num-opps': -266.13745693758131,
     'closest-killer' : 0.4731431889471642,
-    'distance-to-friend' : 10.5003935434660369,
+    'distance-to-friend' : 20.5003935434660369,
 }
 
 
@@ -776,7 +776,7 @@ class DefensiveAgent(SmartAgent):
         rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
         if action == rev: features['reverse'] = 1.0
 
-        if primary_defender: 
+        if not primary_defender:
             features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
 
         features.divideAll(10.0)
