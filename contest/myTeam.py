@@ -313,21 +313,20 @@ class SmartAgent(CaptureAgent):
           actions = s.getLegalActions(teams[turn])
 
           for action in actions:
-              if action != "Stop":
-                  if turn == 3:
-                      newPos = self.generateSuccessorPosition(s.getAgentPosition(teams[turn]), action)
-                      successor = self.setGhostPosition(s, newPos, teams[turn])
-                      result = self.minimax(sucessor, t, turn + 1, alpha, beta, depth + 1)
-                  else:
-                      newPos = self.generateSuccessorPosition(s.getAgentPosition(teams[turn]), action)
-                      successor = self.setGhostPosition(s, newPos, teams[turn])
-                      result = self.minimax(successor, t, 0, alpha, beta, depth + 1)
+              if turn == 3:
+                  newPos = self.generateSuccessorPosition(s.getAgentPosition(teams[turn]), action)
+                  successor = self.setGhostPosition(s, newPos, teams[turn])
+                  result = self.minimax(sucessor, t, turn + 1, alpha, beta, depth + 1)
+              else:
+                  newPos = self.generateSuccessorPosition(s.getAgentPosition(teams[turn]), action)
+                  successor = self.setGhostPosition(s, newPos, teams[turn])
+                  result = self.minimax(successor, t, 0, alpha, beta, depth + 1)
 
-                  if result < min_action:
-                      min_action = result
+              if result < min_action:
+                  min_action = result
 
-                  if min_action < alpha:
-                      return min_action
+              if min_action < alpha:
+                  return min_action
 
               beta = min(beta, min_action)
 
@@ -514,7 +513,6 @@ class SmartAgent(CaptureAgent):
       are no legal actions, which is the case at the terminal state,
       you should return None.
     """
-    # print([(self.getQValue(state, action), action, self.getFeatures(state, action)) for action in state.getLegalActions(self.index)])
     return None if len(state.getLegalActions(self.index)) == 0 else max([(self.getQValue(state, action), action) for action in state.getLegalActions(self.index)], key=lambda x : x[0])[1]
 
   def computeValueFromQValues(self, state):
@@ -803,7 +801,7 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
     '''
     def registerInitialState(self, s):
         SmartAgent.registerInitialState(self, s)
-        self.depth = 4
+        self.depth = 5
 
         global aggressive_weights
         self.weights = aggressive_weights
@@ -836,7 +834,6 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
         if defensive:
             if len(defenders) >= 2 and self.getMazeDistance(pos, self.home) > 9:
                 action = self.returnHome(s)
-                print("country roads... take me home")
             else:
                 self.weights = defensive_weights
                 action = DefensiveAgent.chooseAction(self, s)
