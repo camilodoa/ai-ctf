@@ -724,6 +724,7 @@ class DefensiveAgent(SmartAgent):
         successor = state.generateSuccessor(self.index, action)
         agentState = state.getAgentState(self.index)
         walls = state.getWalls()
+        primary_defender = (self.index == state.getRedTeamIndices()[0] or self.index == state.getBlueTeamIndices()[0])
 
         # Meta data
         walls = state.getWalls()
@@ -775,7 +776,8 @@ class DefensiveAgent(SmartAgent):
         rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
         if action == rev: features['reverse'] = 1.0
 
-        features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
+        if primary_defender: 
+            features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
 
         features.divideAll(10.0)
         return features
@@ -836,7 +838,7 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
 
         global defensive_weights
         global aggressive_weights
-        defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood/2) or (score >= 9 and self.weights == defensive_weights))
+        defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (score >= 9 and self.weights == defensive_weights)
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
             if len(defenders) >= 2 and self.getMazeDistance(pos, self.home) > 4:
