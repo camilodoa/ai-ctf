@@ -273,6 +273,8 @@ class SmartAgent(CaptureAgent):
             decimal = float(i)/10
             self.debugDraw([sorted_beliefs[i][0]], [decimal,0,decimal], clear = False)
             self.debugDraw([sorted_beliefs[i][1]], [0,decimal,decimal], clear = False)
+
+      self.debugDraw([self.home], [1,0,0], clear = False)
   '''
   ###################################################################### General
   '''
@@ -807,7 +809,7 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
         self.weights = aggressive_weights
 
     def chooseAction(self, s):
-        x, y = s.getAgentPosition(self.index)
+        x, y = pos= s.getAgentPosition(self.index)
         opponents = self.getLikelyOppPosition()
         defenders = []
         invaders = []
@@ -832,17 +834,15 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
         defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2) or (score >= 9 and self.weights == defensive_weights))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
-            if len(defenders) >= 2 and abs(x - self.home[0]) >= 2 and abs(y - self.home[1]) >= 2:
+            if len(defenders) >= 2 and self.getMazeDistance(pos, self.home) > 9:
                 action = self.returnHome(s)
                 print("country roads... take me home")
             else:
-                print("defense for agent ", self.index)
                 self.weights = defensive_weights
                 action = DefensiveAgent.chooseAction(self, s)
 
         # Otherwise, be aggressive!
         else:
-            print("offense for agent ", self.index)
             self.weights = aggressive_weights
             action = AggressiveAgent.chooseAction(self, s)
         return action
