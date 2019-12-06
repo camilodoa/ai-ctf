@@ -57,6 +57,7 @@ defensive_weights = {
     'closest-killer' : 0.4731431889471642
 }
 
+
 '''
 SmartAgent #####################################################################
 '''
@@ -89,7 +90,7 @@ class SmartAgent(CaptureAgent):
       walls = state.getWalls()
 
       self.start = state.getAgentPosition(self.index)
-      self.border = float(abs(state.getInitialAgentPosition(opp[0])[0] - self.start[0]))/2
+      self.border = walls.width / 2
 
       # Q learning
       self.epsilon = 0.0
@@ -100,20 +101,15 @@ class SmartAgent(CaptureAgent):
       self.learn = True
       self.numOurFood = self.getFoodYouAreDefending(state).count(True)
       self.numFood = self.getFood(state).count(True)
+      self.food = state.getBlueFood() if self.isOnRedTeam else state.getRedFood()
 
       if self.isOnRedTeam:
-          self.home = self.border/2
+          self.home = (self.border - self.border/2, walls.height/2)
       else:
-          self.home = self.border + self.border/2
+          self.home = (self.border + self.border/2, walls.height/2)
 
-      best_dist = 9999
-      for position in self.legal_positions:
-          dist = manhattanDistance((self.home, walls.height/2), position)
-          if dist < best_dist:
-              best_pos = position
-
-      self.home = position
-      print(self.home)
+      if self.home not in self.legal_positions:
+          self.home = min([(manhattanDistance(self.home, position), position) for position in self.legal_positions],key = lambda x : x[0])[1]
 
       # Minimax
       self.use_minimax = False
@@ -378,6 +374,7 @@ class SmartAgent(CaptureAgent):
       pacmanPosition = state.getAgentPosition(self.index)
       oppList = self.getOpponents(state)
       noisyDistances = [state.getAgentDistances()[x] for x in oppList]
+      food = state.getRedFood() if self.isOnRedTeam else state.getBlueFood()
       if len(noisyDistances) < self.num_opponents:
           return
 
@@ -398,6 +395,23 @@ class SmartAgent(CaptureAgent):
                       newParticle[i] = state.getInitialAgentPosition(opp)
                       self.particles[j] = tuple(newParticle)
 
+      opp_position = self.getLikelyOppPosition()
+      # If some of our food is missing, we know where a culprit might be!
+      if food.count(True) != self.food.count(True):
+          greedy_position = None
+          for i, row in enumerate(food):
+              for j, element in enumerate(row):
+                  if food[i][j] != self.food[i][j]:
+                      greedy_position = (i, j)
+                      break
+
+          self.food = food
+
+          greedy_opp = min([(util.manhattanDistance(greedy_position, opp_position[i]), i) for i, opponent in enumerate(oppList)], key = lambda x : x[0])[1]
+          for i, particle in enumerate(self.particles):
+              newParticle = list(particle)
+              newParticle[greedy_opp] = greedy_position
+              self.particles[i] = tuple(newParticle)
 
       weights = util.Counter()
       for particle in self.particles:
@@ -818,12 +832,11 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
         defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2) or (score >= 9 and self.weights == defensive_weights))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
-            if len(defenders) >= 2 and abs(x - self.home[0]) >= 3 and abs(y - self.home[0]) >= 3:
+            if len(defenders) >= 2 and abs(x - self.home[0]) >= 2 and abs(y - self.home[1]) >= 2:
                 action = self.returnHome(s)
                 print("country roads... take me home")
             else:
                 print("defense for agent ", self.index)
-                print("score ", score)
                 self.weights = defensive_weights
                 action = DefensiveAgent.chooseAction(self, s)
 
