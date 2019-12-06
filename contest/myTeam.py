@@ -43,7 +43,8 @@ aggressive_weights = {
     'opponents-4-steps-away' : -3.0550523826620437,
     'successor-food-count' : 100.0021893740633943063,
     'died' : -4000.5819301567078,
-    'eats-food' : 10.622005393403555
+    'eats-food' : 10.622005393403555,
+    'eats-capsule' : 20
 }
 
 defensive_weights = {
@@ -54,7 +55,8 @@ defensive_weights = {
     'stop' : -30.11940638920235,
     'eats-pacman' : 1000.184096316507649,
     'num-opps': -266.13745693758131,
-    'closest-killer' : 0.4731431889471642
+    'closest-killer' : 0.4731431889471642,
+    'distance-to-friend' : 10.5003935434660369,
 }
 
 
@@ -104,9 +106,9 @@ class SmartAgent(CaptureAgent):
       self.food = state.getBlueFood() if self.isOnRedTeam else state.getRedFood()
 
       if self.isOnRedTeam:
-          self.home = (self.border - self.border/2, walls.height/2)
+          self.home = (self.border - self.border/2 + 1, walls.height/2)
       else:
-          self.home = (self.border + self.border/2, walls.height/2)
+          self.home = (self.border + self.border/2 - 1, walls.height/2)
 
       if self.home not in self.legal_positions:
           self.home = min([(manhattanDistance(self.home, position), position) for position in self.legal_positions],key = lambda x : x[0])[1]
@@ -609,6 +611,7 @@ class AggressiveAgent(SmartAgent):
         x, y = pos = state.getAgentPosition(self.index)
         successor = state.generateSuccessor(self.index, action)
         agentState = state.getAgentState(self.index)
+        capsules = state.getBlueCapsules() if self.isOnRedTeam else state.getRedCapsules()
         # Meta data
         walls = state.getWalls()
         opponents = self.getLikelyOppPosition()
@@ -688,6 +691,9 @@ class AggressiveAgent(SmartAgent):
             rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
             if action == rev: features['reverse'] = 1.0
 
+        if (next_x, next_y) in capsules:
+            features['eats-capsule'] = 1.0
+
         features.divideAll(10.0)
         return features
 
@@ -718,14 +724,15 @@ class DefensiveAgent(SmartAgent):
         successor = state.generateSuccessor(self.index, action)
         agentState = state.getAgentState(self.index)
         walls = state.getWalls()
-        # Meta data
 
+        # Meta data
         walls = state.getWalls()
         opponents = self.getLikelyOppPosition()
         ghosts = []
         oppPacmen = []
         # Fill out opponent arrays
         if self.isOnRedTeam:
+            friendPos = state.getAgentPosition([x for x in state.getRedTeamIndices() if x != self.index][0])
             if pos[0] > self.border:
                 isOnside = False
             else:
@@ -738,6 +745,7 @@ class DefensiveAgent(SmartAgent):
                 else:
                     ghosts.append(opp)
         else:
+            friendPos = state.getAgentPosition([x for x in state.getBlueTeamIndices() if x != self.index][0])
             if pos[0] <= self.border:
                 isOnside = False
             else:
@@ -769,6 +777,8 @@ class DefensiveAgent(SmartAgent):
         if action == Directions.STOP: features['stop'] = 1.0
         rev = Directions.REVERSE[state.getAgentState(self.index).configuration.direction]
         if action == rev: features['reverse'] = 1.0
+
+        features['distance-to-friend'] = float(self.getMazeDistance(pos, friendPos)) / (walls.width * walls.height)
 
         features.divideAll(10.0)
         return features
@@ -829,10 +839,10 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
 
         global defensive_weights
         global aggressive_weights
-        defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2) or (score >= 9 and self.weights == defensive_weights))
+        defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood/2) or (score >= 9 and self.weights == defensive_weights))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
-            if len(defenders) >= 2 and self.getMazeDistance(pos, self.home) > 9:
+            if len(defenders) >= 2 and self.getMazeDistance(pos, self.home) > 6:
                 action = self.returnHome(s)
             else:
                 self.weights = defensive_weights
