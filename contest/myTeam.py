@@ -766,9 +766,6 @@ class DefensiveAgent(SmartAgent):
             features['distance-to-start'] = float(self.getMazeDistance((next_x, next_y), self.start)) / (walls.width * walls.height)
         if len(oppPacmen) > 0:
             dists = [self.dist((next_x, next_y), pac, walls) for pac in oppPacmen]
-            # if agentState.scaredTimer > 0:
-            #     features['is-scared'] = 1
-            #     features['closest-killer'] = float(min(dists)) / (walls.width * walls.height)
             features['num-opps'] = len(oppPacmen)
             features['closest-opp'] = float(min(dists)) / (walls.width * walls.height)
             if (next_x, next_y) in oppPacmen:
@@ -842,7 +839,7 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
         defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood/2) or (score >= 9 and self.weights == defensive_weights))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
-            if len(defenders) >= 2 and self.getMazeDistance(pos, self.home) > 6:
+            if len(defenders) >= 2 and self.getMazeDistance(pos, self.home) > 4:
                 action = self.returnHome(s)
             else:
                 self.weights = defensive_weights
