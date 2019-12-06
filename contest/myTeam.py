@@ -14,6 +14,7 @@
 import random, time, util, game, itertools
 from game import Directions, Actions
 from captureAgents import CaptureAgent
+from util import manhattanDistance
 
 #################
 # Team creation #
@@ -104,6 +105,15 @@ class SmartAgent(CaptureAgent):
           self.home = self.border/2
       else:
           self.home = self.border + self.border/2
+
+      best_dist = 9999
+      for position in self.legal_positions:
+          dist = manhattanDistance((self.home, walls.height/2), position)
+          if dist < best_dist:
+              best_pos = position
+
+      self.home = position
+      print(self.home)
 
       # Minimax
       self.use_minimax = False
@@ -200,7 +210,6 @@ class SmartAgent(CaptureAgent):
 
       # Fill out opponent arrays
       if self.isOnRedTeam:
-          home = (int(self.border/2), )
           oppindices = state.getBlueTeamIndices()
           for i, opp in enumerate(opponents):
               if opp[0] < self.border:
@@ -221,7 +230,7 @@ class SmartAgent(CaptureAgent):
       for spec_action in actions:
           successor = state.generateSuccessor(self.index, spec_action)
           pos2 = successor.getAgentPosition(self.index)
-          dist = self.getMazeDistance(self.start, pos2)
+          dist = self.getMazeDistance(self.home, pos2)
           if dist < best_dist:
               best_action = spec_action
               best_dist = dist
@@ -809,7 +818,7 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
         defensive = (len(invaders) >= 1 and us.scaredTimer == 0) or (self.getFoodYouAreDefending(s).count(True) <= (self.numOurFood//2) or (score >= 9 and self.weights == defensive_weights))
         # If we're being invaded and we aren't scared, be defensive
         if defensive:
-            if len(defenders) >= 2 and abs(x - self.home) >= 2 :
+            if len(defenders) >= 2 and abs(x - self.home[0]) >= 3 and abs(y - self.home[0]) >= 3:
                 action = self.returnHome(s)
                 print("country roads... take me home")
             else:
@@ -821,7 +830,6 @@ class RationalAgent(DefensiveAgent, AggressiveAgent, SmartAgent):
         # Otherwise, be aggressive!
         else:
             print("offense for agent ", self.index)
-
             self.weights = aggressive_weights
             action = AggressiveAgent.chooseAction(self, s)
         return action
