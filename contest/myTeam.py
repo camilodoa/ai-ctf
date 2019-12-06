@@ -170,7 +170,7 @@ class SmartAgent(CaptureAgent):
           self.update(state, action, state.generateSuccessor(self.index, action), reward)
 
       # Draw particle distribution
-      self.drawBeliefs()
+      # self.drawBeliefs()
 
       # Update particles
       self.elapseTime(state)
